@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hecke Enterprise Console v4.2</title>
+  <meta name="description" content="Algebraic fraud detection — 0-Hecke monoid H₀(Sₙ) · SOX 404 · DORA · PSD3 · EU AI Act Art. 86"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #070b14; }
+    #root { min-height: 100vh; }
+    #loading {
+      position: fixed; inset: 0; background: #070b14;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      font-family: 'Georgia', serif; color: #c9a84c; z-index: 9999;
+    }
+    #loading .spinner {
+      width: 48px; height: 48px; border: 3px solid #1a2540;
+      border-top-color: #c9a84c; border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    #loading .label { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; opacity: 0.8; }
+    #loading .sub { font-size: 10px; color: #4f607e; font-family: monospace; letter-spacing: .08em; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="label">Hecke Enterprise Console</div>
+    <div class="sub">Loading algebraic engine…</div>
+  </div>
+  <div id="root"></div>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Recharts (depends on React + d3-scale/shape etc — full bundle) -->
+  <script src="https://unpkg.com/recharts@2.10.0/umd/Recharts.js"></script>
+
+  <!-- Babel standalone to compile JSX -->
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+
+  <script type="text/babel" data-presets="react">
+    // ── Destructure globals ──────────────────────────────────────
+    const { useState, useMemo, useCallback, useEffect } = React;
+    const {
+      AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+      XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+      RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+      LineChart, Line
+    } = Recharts;
+
+// ═══════════════════════════════════════════════════════════════
+//  CORE ENGINE — 0-Hecke Monoid H₀(Sₙ)  (unchanged logic)
+// ═══════════════════════════════════════════════════════════════
+function reduce(w){const r=[...w],st=[],v=new Set();let c=true;while(c){c=false;for(let i=0;i<r.length-1;i++){if(r[i]===r[i+1]){r.splice(i+1,1);st.push({rule:'R1',pos:i});v.add('R1');c=true;break;}}if(c)continue;for(let i=0;i<r.length-1;i++){if(Math.abs(r[i]-r[i+1])>=2&&r[i]>r[i+1]){[r[i],r[i+1]]=[r[i+1],r[i]];st.push({rule:'R2',pos:i});v.add('R2');c=true;break;}}if(c)continue;for(let i=0;i<r.length-2;i++){if(r[i]===r[i+2]&&Math.abs(r[i]-r[i+1])===1&&r[i]>r[i+1]){const a=r[i],b=r[i+1];r[i]=b;r[i+1]=a;r[i+2]=b;st.push({rule:'R3',pos:i});v.add('R3');c=true;break;}}}return{canonical:r,steps:st,violations:[...v]};}
+function sHash(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}return Math.abs(h).toString(16).padStart(16,'0');}
+const TOUCH_PROFILES={human:{pressureMean:.52,pressureStd:.14,swipeVelMean:820,swipeVelStd:280,keystrokeMean:115,keystrokeStd:38,touchAreaMean:48,touchAreaStd:12},bot:{pressureMean:.50,pressureStd:.005,swipeVelMean:500,swipeVelStd:8,keystrokeMean:50,keystrokeStd:2,touchAreaMean:30,touchAreaStd:1}};
+function genMobileSignals(isBot,rng){const p=isBot?TOUCH_PROFILES.bot:TOUCH_PROFILES.human;const g=(m,s)=>Math.max(0,m+(rng()-.5)*2*s);return{touchPressure:{mean:+g(p.pressureMean,p.pressureStd).toFixed(3),std:+g(p.pressureStd,isBot?.001:.04).toFixed(4),samples:Math.floor(rng()*8)+3},swipeVelocity:{mean:Math.round(g(p.swipeVelMean,p.swipeVelStd)),std:Math.round(g(p.swipeVelStd,isBot?2:60)),unit:'px/s'},keystrokeDynamics:{interKeyMean:Math.round(g(p.keystrokeMean,p.keystrokeStd)),interKeyStd:Math.round(g(p.keystrokeStd,isBot?.5:8)),unit:'ms'},touchArea:{mean:Math.round(g(p.touchAreaMean,p.touchAreaStd)),std:Math.round(g(p.touchAreaStd,isBot?.2:3)),unit:'px²'},inputMethod:isBot?'AUTOMATED':rng()>.3?'TOUCH':'KEYBOARD',mobileScore:isBot?Math.floor(rng()*15+80):Math.floor(rng()*25+5)};}
+function scoreMobile(signals){if(!signals)return{flag:false,score:0,reasons:[]};const reasons=[];let s=0;if(signals.touchPressure.std<.01){s+=35;reasons.push({code:'RC-M01',text:'Touch pressure variance near zero — probable bot automation',reg:'PSD3/PSR Art. 83',weight:35,confidence:92});}if(signals.keystrokeDynamics.interKeyStd<5){s+=30;reasons.push({code:'RC-M02',text:'Uniform keystroke timing detected — scripted input pattern',reg:'EU AI Act Art. 86',weight:30,confidence:88});}if(signals.swipeVelocity.std<15){s+=20;reasons.push({code:'RC-M03',text:'No swipe acceleration variance — automated gesture replay',reg:'DORA Art. 9',weight:20,confidence:85});}return{flag:s>=30,score:Math.min(s,95),reasons};}
+const UA_POOL=['Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122','Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) Safari/17.3','Mozilla/5.0 (iPhone; CPU iPhone OS 17_3) Safari/604','Mozilla/5.0 (Linux; Android 14) Chrome/122','Mozilla/5.0 (X11; Linux x86_64) Firefox/123','HeadlessBrowser/1.0 Automation'];
+const SCREEN_POOL=['1920x1080','2560x1440','1440x900','375x812','390x844','414x896','1366x768'];
+const TZ_POOL=['Europe/Brussels','Europe/Paris','Europe/Berlin','Europe/Amsterdam','Europe/Rome','UTC','America/New_York'];
+const WEBGL_POOL=['ANGLE (Intel, Mesa Intel UHD 770)','ANGLE (NVIDIA GeForce RTX 4070)','Apple GPU','Mali-G78','Adreno (TM) 730','SwiftShader'];
+function genDeviceFingerprint(rng,suspicious){const ua=suspicious?UA_POOL[5]:pk(UA_POOL.slice(0,5));const scr=pk(SCREEN_POOL);const tz=suspicious?'UTC':pk(TZ_POOL.slice(0,5));const lang=pk(['en-GB','fr-BE','nl-BE','de-DE','fr-FR','en-US']);const webgl=suspicious?'SwiftShader':pk(WEBGL_POOL.slice(0,5));const platform=ua.includes('Windows')?'Win32':ua.includes('Mac')?'MacIntel':ua.includes('iPhone')?'iPhone':ua.includes('Android')?'Linux armv8l':'Linux x86_64';const raw=ua+scr+tz+lang+webgl+platform;const fpId=sHash(raw);let compositeScore=0;const reasons=[];if(ua.includes('Headless')){compositeScore+=40;reasons.push({code:'RC-D01',text:'Headless browser detected — high automation probability',reg:'PSD2 Art. 97 / DORA Art. 17',weight:40,confidence:95});}if(webgl==='SwiftShader'){compositeScore+=25;reasons.push({code:'RC-D02',text:'Software WebGL renderer — virtual environment indicator',reg:'EU AI Act Art. 86',weight:25,confidence:78});}if(suspicious&&rng()>.5){compositeScore+=30;reasons.push({code:'RC-D03',text:'Device fingerprint reused across multiple accounts',reg:'GDPR Art. 22 / AML 2015/849',weight:30,confidence:82});}return{userAgent:ua,screenRes:scr,timezone:tz,language:lang,platform,webglRenderer:webgl,canvasHash:sHash(raw+'canvas').slice(0,12),fontsHash:sHash(raw+'fonts').slice(0,8),fingerprintId:fpId,compositeScore:Math.min(compositeScore,95),riskLevel:compositeScore>=40?'HIGH':compositeScore>=20?'MEDIUM':'LOW',reasons};}
+const REASON_CATALOG={'P1':{code:'RC-A01',text:'Duplicate payment initiation detected — word contains idempotent violation (R1)',confidence:100},'P2':{code:'RC-A02',text:'Double settlement execution — settlement finality breach',confidence:100},'P3':{code:'RC-A03',text:'Authentication step bypassed — SCA sequence violation',confidence:100},'P4':{code:'RC-A04',text:'Execution before authorization — lifecycle ordering violation',confidence:100},'P5':{code:'RC-A05',text:'Premature settlement — execution step not completed',confidence:100},'P6':{code:'RC-A06',text:'Threshold splitting detected — aggregation control circumvented',confidence:100},'P7':{code:'RC-A07',text:'Transaction replay detected — non-unique message identifier',confidence:100},'P8':{code:'RC-A08',text:'Beneficiary changed post-authorization — BEC indicator',confidence:100},'P9':{code:'RC-A09',text:'Payment executed despite VoP NO_MATCH — override without review',confidence:100},'P10':{code:'RC-A10',text:'Sanctions screening step absent — payment to potentially restricted entity',confidence:100},'IP1':{code:'RC-A11',text:'Duplicate purchase requisition — maverick spend risk',confidence:100},'IP2':{code:'RC-A12',text:'Duplicate vendor payment — double disbursement',confidence:100},'IP3':{code:'RC-A13',text:'Invoice processed without purchase order — unauthorized commitment',confidence:100},'IP4':{code:'RC-A14',text:'Payment before goods receipt — three-way match bypass',confidence:100},'IP5':{code:'RC-A15',text:'Payment before three-way match completion — material weakness',confidence:100},'IP6':{code:'RC-A16',text:'Invoice splitting below approval threshold — circumvention',confidence:100},'IP7':{code:'RC-A17',text:'Purchase order replayed for unrelated invoices',confidence:100},'IP8':{code:'RC-A18',text:'Match data altered after initial reconciliation',confidence:100}};
+function buildExplanation(tx){const reasons=[];if(tx.finding&&REASON_CATALOG[tx.finding.code]){const rc=REASON_CATALOG[tx.finding.code];reasons.push({...rc,source:'ALGEBRAIC',regulation:tx.finding.reg,patternCode:tx.finding.code});}if(tx.heuristicFlags)tx.heuristicFlags.forEach(h=>{if(h.score>=30)reasons.push({code:`RC-H${h.code.replace(/\D/g,'').padStart(2,'0')}`,text:h.risk||h.name,source:'HEURISTIC',confidence:Math.min(h.score+10,95),regulation:h.reg,weight:h.score});});if(tx.mobileReasons)tx.mobileReasons.forEach(r=>reasons.push({...r,source:'MOBILE'}));if(tx.deviceReasons)tx.deviceReasons.forEach(r=>reasons.push({...r,source:'DEVICE'}));const primary=reasons.sort((a,b)=>(b.confidence||0)-(a.confidence||0))[0];const explanation=reasons.length?`Decision: ${tx.verdict}. Primary factor: ${primary?.text||'N/A'}. ${reasons.length} reason code(s) generated. [EU AI Act Art. 86 / GDPR Art. 22 compliant]`:'No adverse decision — transaction approved.';return{reasonCodes:reasons,explanation,primaryReason:primary||null,totalFactors:reasons.length,regulatoryBasis:reasons.map(r=>r.regulation).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i)};}
+
+let _s=42;const R=()=>{_s=(_s*16807)%2147483647;return(_s-1)/2147483646};const pk=a=>a[Math.floor(R()*a.length)];const rId=(p,n)=>p+String(Math.floor(R()*10**n)).padStart(n,'0');const fmtD=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const addD=(d,n)=>new Date(d.getTime()+n*864e5);
+const VENDORS=[{id:'V-100001',name:'Siemens AG',co:'DE',t:'NET30',b:'DEUTDEFF'},{id:'V-100002',name:'Schneider Electric',co:'FR',t:'NET45',b:'BNPAFRPP'},{id:'V-100003',name:'ABB Ltd',co:'CH',t:'NET30',b:'UBSWCHZH'},{id:'V-100004',name:'Dassault Systèmes',co:'FR',t:'NET60',b:'SOGEFRPP'},{id:'V-100005',name:'SAP SE',co:'DE',t:'NET30',b:'COBADEFF'},{id:'V-100006',name:'Bosch Rexroth',co:'DE',t:'NET45',b:'DEUTDEFF'},{id:'V-100007',name:'Philips International',co:'NL',t:'NET30',b:'INGBNL2A'},{id:'V-100008',name:'Atos SE',co:'FR',t:'NET60',b:'BNPAFRPP'},{id:'V-100009',name:'KONE Corp.',co:'FI',t:'NET30',b:'NDEAFIHH'},{id:'V-100010',name:'Infineon Tech.',co:'DE',t:'NET45',b:'HYVEDEMM'},{id:'V-100011',name:'Nokia Corp.',co:'FI',t:'NET30',b:'NDEAFIHH'},{id:'V-100012',name:'Thales SA',co:'FR',t:'NET45',b:'BNPAFRPP'}];
+const DEBTORS=[{name:'KBC Bank NV',bic:'KREDBEBB',iban:'BE68539007547034'},{name:'ING Belgium',bic:'BBRUBEBB',iban:'BE68539007547035'},{name:'BNP Paribas Fortis',bic:'GEBABEBB',iban:'BE68539007547036'},{name:'Belfius Bank',bic:'GKCCBEBB',iban:'BE68539007547037'},{name:'Argenta',bic:'ARSPBE22',iban:'BE68539007547038'}];
+const CREDITORS=[{name:'BNP Paribas SA',bic:'BNPAFRPP',co:'FR',iban:'FR76300040000312345'},{name:'Société Générale',bic:'SOGEFRPP',co:'FR',iban:'FR76300040000398765'},{name:'Deutsche Bank',bic:'DEUTDEFF',co:'DE',iban:'DE89370400440532013'},{name:'Commerzbank',bic:'COBADEFF',co:'DE',iban:'DE27100777770209299'},{name:'ING Bank NV',bic:'INGBNL2A',co:'NL',iban:'NL91ABNA0417164300'},{name:'ABN AMRO',bic:'ABNANL2A',co:'NL',iban:'NL02ABNA0123456789'},{name:'Banco Santander',bic:'BSCHESMM',co:'ES',iban:'ES9121000418450200'},{name:'UniCredit',bic:'UNCRITMM',co:'IT',iban:'IT60X054281110100'}];
+const MATG=[{c:'MG-100',n:'IT Hardware',gl:'6010-1000'},{c:'MG-200',n:'Software Licenses',gl:'6020-1000'},{c:'MG-300',n:'Office Supplies',gl:'6030-1000'},{c:'MG-400',n:'Consulting',gl:'6040-1000'},{c:'MG-500',n:'Maintenance',gl:'6050-1000'},{c:'MG-600',n:'Raw Materials',gl:'6060-1000'},{c:'MG-700',n:'Transport',gl:'6070-1000'},{c:'MG-800',n:'Energy',gl:'6080-1000'},{c:'MG-900',n:'Prof. Services',gl:'6090-1000'},{c:'MG-950',n:'Facility Mgmt',gl:'6095-1000'}];
+const CCTR=[{c:'CC-1000',d:'IT',m:'Van den Berg, K.'},{c:'CC-2000',d:'Finance',m:'Dupont, M.'},{c:'CC-3000',d:'Operations',m:'Müller, H.'},{c:'CC-4000',d:'HR',m:'Laurent, S.'},{c:'CC-5000',d:'Legal',m:'Peeters, J.'},{c:'CC-6000',d:'Procurement',m:'Schmidt, A.'},{c:'CC-7000',d:'R&D',m:'De Smet, L.'},{c:'CC-8000',d:'Sales',m:'Janssen, P.'}];
+const COCO=[{c:'1000',n:'SFL Group Belgium'},{c:'2000',n:'SFL France SAS'},{c:'3000',n:'SFL Deutschland GmbH'}];
+const PURP=['Supplier payment','Service contract','Equipment maintenance','Raw materials','Software license','Consulting','Transport','Insurance','Lease','IT infrastructure','Marketing','Legal advisory','Audit services','Spare parts','Energy supply'];
+const PP=[{code:'P1',name:'Duplicate Initiation',sev:'HIGH',cat:'Segregation of Duties',reg:'PSD3/PSR Art. 49 [COM(2023)367]',risk:'Duplicate debit',w:[1,1,2,3,4,5],sox:'ITGC-PM-01',isae:'CO-PM-01',ctrl:'Duplicate detection',pcaob:'AS 2201.A5',dora:'LOW',iso:'pacs.008',method:'ALGEBRAIC'},{code:'P2',name:'Duplicate Settlement',sev:'CRITICAL',cat:'Settlement Finality',reg:'SFD 98/26/EC, DORA Art. 6',risk:'Double fund transfer',w:[1,2,3,4,5,5],sox:'ITGC-PM-02',isae:'CO-PM-02',ctrl:'Settlement idempotency',pcaob:'AS 2201.A5',dora:'HIGH',iso:'pacs.002',method:'ALGEBRAIC'},{code:'P3',name:'Authentication Bypass',sev:'CRITICAL',cat:'Strong Customer Auth.',reg:'PSD2 SCA Art. 97 → PSR Art. 83',risk:'Unauthorized execution',w:[1,3,2,3,4,5],sox:'ITGC-PM-03',isae:'CO-PM-03',ctrl:'SCA enforcement',pcaob:'AS 2201.62',dora:'CRITICAL',iso:'pain.001',method:'ALGEBRAIC'},{code:'P4',name:'Exec Without Auth',sev:'CRITICAL',cat:'Authorization Sequence',reg:'PSD2 Art. 97(1) → PSR Art. 83(1)',risk:'Funds moved before auth',w:[1,4,2,3,5],sox:'ITGC-PM-04',isae:'CO-PM-04',ctrl:'Execution gate',pcaob:'AS 2201.62',dora:'CRITICAL',iso:'pacs.008',method:'ALGEBRAIC'},{code:'P5',name:'Premature Settlement',sev:'CRITICAL',cat:'Settlement Sequence',reg:'SFD 98/26/EC',risk:'Settlement before execution',w:[1,2,5,3,4],sox:'ITGC-PM-05',isae:'CO-PM-05',ctrl:'Sequence control',pcaob:'AS 2201.A5',dora:'HIGH',iso:'pacs.002',method:'ALGEBRAIC'},{code:'P6',name:'Threshold Splitting',sev:'HIGH',cat:'SCA Exemption',reg:'PSD2 RTS Art. 16/18',risk:'SCA threshold avoidance',w:[1,1,2,3,4,5],sox:'ITGC-PM-06',isae:'CO-PM-06',ctrl:'Aggregation control',pcaob:'AS 2201.69',dora:'MEDIUM',iso:'pain.001',method:'ALGEBRAIC'},{code:'P7',name:'Transaction Replay',sev:'CRITICAL',cat:'Idempotency',reg:'PSD3/PSR Art. 83 [COM(2023)367]',risk:'Replayed transaction',w:[1,2,2,2,3,4,5],sox:'ITGC-PM-07',isae:'CO-PM-07',ctrl:'Replay detection',pcaob:'AS 2201.A5',dora:'HIGH',iso:'pacs.008',method:'ALGEBRAIC'},{code:'P8',name:'Beneficiary Swap (BEC)',sev:'CRITICAL',cat:'Beneficiary Integrity',reg:'PSD2 Art. 64 / IPR VoP Art. 5c',risk:'Beneficiary changed post-auth',w:[1,2,4,3,4,5],sox:'ITGC-PM-08',isae:'CO-PM-08',ctrl:'Beneficiary immutability',pcaob:'AS 2201.62',dora:'CRITICAL',iso:'pacs.008',method:'ALGEBRAIC'},{code:'P9',name:'VoP Mismatch Override',sev:'HIGH',cat:'Verification of Payee',reg:'IPR 2024/886 Art. 5c',risk:'Payment despite VoP NO_MATCH',w:[1,2,3,3,4,5],sox:'ITGC-PM-09',isae:'CO-PM-09',ctrl:'VoP enforcement',pcaob:'AS 2201.62',dora:'HIGH',iso:'pacs.008',method:'ALGEBRAIC'},{code:'P10',name:'Sanctions Screen Bypass',sev:'CRITICAL',cat:'Sanctions Compliance',reg:'IPR 2024/886 Art. 5d / EU Reg. 269/2014',risk:'Payment to sanctioned entity',w:[1,2,5,4,3,5],sox:'ITGC-PM-10',isae:'CO-PM-10',ctrl:'Daily screening per IPR',pcaob:'AS 2201.A5',dora:'CRITICAL',iso:'pacs.008',method:'ALGEBRAIC'}];
+const IP=[{code:'IP1',name:'Duplicate Requisition',sev:'HIGH',cat:'Requisition Controls',reg:'SOX 404',risk:'Maverick spend',w:[1,1,2,3,4,5,6],sox:'ITGC-INV-01',isae:'CO-INV-01',ctrl:'Requisition dedup',tc:'ME51N',pcaob:'AS 2201.69',dora:'LOW',method:'ALGEBRAIC'},{code:'IP2',name:'Duplicate Payment',sev:'CRITICAL',cat:'Payment Controls',reg:'SOX 404',risk:'Double vendor payment',w:[1,2,3,4,5,6,6],sox:'ITGC-INV-02',isae:'CO-INV-02',ctrl:'Payment dedup',tc:'F110',pcaob:'AS 2201.A5',dora:'MEDIUM',method:'ALGEBRAIC'},{code:'IP3',name:'Invoice Without PO',sev:'CRITICAL',cat:'Approval Controls',reg:'SOX 404, ISAE 3402',risk:'Unauthorized commitment',w:[1,4,2,3,5,6],sox:'ITGC-INV-03',isae:'CO-INV-03',ctrl:'PO-Invoice gate',tc:'MIRO',pcaob:'AS 2201.62',dora:'LOW',method:'ALGEBRAIC'},{code:'IP4',name:'Pay Before Receipt',sev:'CRITICAL',cat:'Three-Way Match',reg:'SOX 404, ISAE 3402',risk:'Payment before goods received',w:[1,2,6,3,4,5],sox:'ITGC-INV-04',isae:'CO-INV-04',ctrl:'GR verification',tc:'MIGO',pcaob:'AS 2201.62',dora:'MEDIUM',method:'ALGEBRAIC'},{code:'IP5',name:'Pay Before 3-Way Match',sev:'CRITICAL',cat:'Three-Way Match',reg:'SOX 404',risk:'Payment before reconciliation — MW',w:[1,2,3,6,4,5],sox:'ITGC-INV-05',isae:'CO-INV-05',ctrl:'3-way match enforcement',tc:'MR8M',mw:true,pcaob:'AS 2201.A14',dora:'HIGH',method:'ALGEBRAIC'},{code:'IP6',name:'Invoice Splitting',sev:'HIGH',cat:'Threshold Controls',reg:'SOX 404, EU 2014/24',risk:'Threshold circumvention',w:[1,1,2,3,4,5,6],sox:'ITGC-INV-06',isae:'CO-INV-06',ctrl:'Amount aggregation',tc:'MIRO',pcaob:'AS 2201.69',dora:'LOW',method:'ALGEBRAIC'},{code:'IP7',name:'PO Replay',sev:'CRITICAL',cat:'PO Controls',reg:'SOX 404',risk:'PO reused for unrelated invoices',w:[1,2,2,2,3,4,5,6],sox:'ITGC-INV-07',isae:'CO-INV-07',ctrl:'PO lifecycle check',tc:'ME21N',pcaob:'AS 2201.A5',dora:'MEDIUM',method:'ALGEBRAIC'},{code:'IP8',name:'Match Manipulation',sev:'CRITICAL',cat:'Three-Way Match',reg:'ISAE 3402',risk:'Match altered before booking',w:[1,2,3,5,4,5,6],sox:'ITGC-INV-08',isae:'CO-INV-08',ctrl:'Match immutability',tc:'MR8M',pcaob:'AS 2201.62',dora:'HIGH',method:'ALGEBRAIC'}];
+const HP=[{code:'H1',name:'APP Fraud Risk',sev:'HIGH',cat:'Authorized Push Payment',reg:'PSD3/PSR Art. 59',risk:'Social engineering',method:'HEURISTIC',ctrl:'Multi-factor behavioral check',dora:'HIGH',indicators:['Unusual beneficiary','Rushed timing','Amount anomaly']},{code:'H2',name:'ATO Attempt Signal',sev:'CRITICAL',cat:'Account Takeover',reg:'PSD2 Art. 72 / DORA Art. 17',risk:'Session anomaly',method:'HEURISTIC',ctrl:'Session fingerprinting',dora:'CRITICAL',indicators:['New device','Unusual geolocation','Rapid session change']},{code:'H3',name:'Velocity Anomaly',sev:'MEDIUM',cat:'Transaction Monitoring',reg:'AML Directive 2015/849 Art. 18',risk:'Unusual frequency',method:'HEURISTIC',ctrl:'Velocity threshold check',dora:'MEDIUM',indicators:['High frequency','Repeated amounts','Same beneficiary']},{code:'H4',name:'Cross-Border High Value',sev:'MEDIUM',cat:'Risk Assessment',reg:'AML Directive 2015/849 Art. 18(2)',risk:'Large cross-border transfer',method:'HEURISTIC',ctrl:'Geographic risk scoring',dora:'LOW',indicators:['Amount > €15K','Non-core country','New beneficiary']},{code:'H5',name:'VoP Name Mismatch',sev:'HIGH',cat:'Verification of Payee',reg:'IPR 2024/886 Art. 5c',risk:'IBAN name mismatch',method:'HEURISTIC',ctrl:'IPR VoP check',dora:'MEDIUM',indicators:['NO_MATCH result','Payer override','First-time payee']},{code:'H6',name:'Synthetic Pattern Cluster',sev:'HIGH',cat:'Multi-TX Correlation',reg:'PSD3/PSR recital 47',risk:'Multi-TX aggregation',method:'HEURISTIC',ctrl:'Cross-session aggregation',dora:'MEDIUM',indicators:['Structured amounts','Common beneficiary','Time clustering']},{code:'H7',name:'Bot Automation Signal',sev:'CRITICAL',cat:'Behavioral Biometrics',reg:'PSD3/PSR Art. 83 / EU AI Act Art. 86',risk:'Automated submission',method:'HEURISTIC',ctrl:'Touch pressure + keystroke dynamics',dora:'CRITICAL',indicators:['Zero pressure variance','Uniform inter-key timing','No swipe acceleration']},{code:'H8',name:'Touch Pressure Anomaly',sev:'HIGH',cat:'Mobile Biometrics',reg:'PSD2 SCA Art. 97 / DORA Art. 9',risk:'Outside physiological range',method:'HEURISTIC',ctrl:'Pressure distribution + touch area',dora:'HIGH',indicators:['Pressure anomaly','Touch area deviation','Linear pattern']},{code:'H9',name:'Device Fingerprint Mismatch',sev:'HIGH',cat:'Device Authentication',reg:'PSD2 Art. 97 / GDPR Art. 22',risk:'Fingerprint changed mid-session',method:'HEURISTIC',ctrl:'Canvas + WebGL + UA composite',dora:'HIGH',indicators:['Hash changed','Cross-account reuse','Headless browser']}];
+const BASE=new Date(2025,11,1),PEND=new Date(2026,1,28);
+function genPay(n){_s=3402;const tx=[];let ph='0'.repeat(32);for(let i=0;i<n;i++){const f=R()<0.165,p=f?pk(PP):null,w=p?[...p.w]:[1,2,3,4,5],{canonical:cn,steps:st,violations:vl}=reduce(w),dt=addD(BASE,Math.floor(R()*89)),db=pk(DEBTORS),cr=pk(CREDITORS),am=f?(p.sev==='CRITICAL'?+(R()*480000+20000).toFixed(2):+(R()*9500+500).toFixed(2)):+(R()*195000+800).toFixed(2);const vopR=R()<0.03?'NO_MATCH':R()<0.08?'CLOSE_MATCH':'MATCH';const iso20022={msgType:R()>.4?'pacs.008.001.10':'pain.001.001.11',msgId:rId('MSG-',12),instrId:rId('INSTR-',10),endToEndId:rId('E2E-',12),txId:rId('TXN-',10)};const pd=JSON.stringify({w,cn,vl,d:fmtD(dt)}),prH=sHash(pd),cH=sHash(ph+prH);ph=cH;const hFlags=[];if(vopR==='NO_MATCH')hFlags.push({...HP[4],score:75});else if(vopR==='CLOSE_MATCH')hFlags.push({...HP[4],score:35});if(am>15000&&cr.co&&!['BE','NL','LU','DE','FR'].includes(cr.co))hFlags.push({...HP[3],score:40});if(R()<0.04)hFlags.push({...HP[0],score:Math.floor(R()*30+55)});if(R()<0.02)hFlags.push({...HP[1],score:Math.floor(R()*25+60)});if(R()<0.06)hFlags.push({...HP[2],score:Math.floor(R()*35+25)});const isBot=R()<0.03;const isSuspiciousDevice=R()<0.04;const mobile=genMobileSignals(isBot,R);const mobileResult=scoreMobile(mobile);const device=genDeviceFingerprint(R,isSuspiciousDevice);if(mobileResult.flag)hFlags.push({...HP[6],score:mobileResult.score});if(mobile.touchPressure.std<.02&&mobile.touchPressure.std>.01)hFlags.push({...HP[7],score:Math.floor(R()*20+40)});if(device.compositeScore>=30)hFlags.push({...HP[8],score:device.compositeScore});tx.push({id:rId('TXN-',10),date:fmtD(dt),ts:dt,type:'payment',word:w.join('-'),cWord:cn.join('-'),rSteps:st.length,vRel:vl.join(';'),debtor:db,creditor:cr,amount:am,currency:'EUR',purpose:pk(PURP),scheme:R()>.3?'SCT':'SCT_INST',sca:pk(['3DS_v2','BIO','SMS_OTP','PUSH']),algebraicVerdict:f?'BLOCKED':'APPROVED',verdict:f?'BLOCKED':hFlags.some(h=>h.score>=60)?'FLAGGED':'APPROVED',finding:p?{...p,materialWeakness:false}:null,violations:vl,lat:Math.floor(R()*12)+3,proofHash:prH,chainHash:cH,evidenceId:rId('EVD-',12),_vopResult:vopR,vop:{result:vopR,instructedName:cr.name,registeredName:vopR==='MATCH'?cr.name:vopR==='CLOSE_MATCH'?cr.name.substring(0,cr.name.length-3)+'...':'Unknown Entity GmbH'},iso20022,heuristicFlags:hFlags,heuristicScore:Math.max(0,...hFlags.map(h=>h.score),0),doraClass:p?p.dora:hFlags.some(h=>h.dora==='CRITICAL')?'CRITICAL':hFlags.some(h=>h.dora==='HIGH')?'HIGH':'NONE',mobileSignals:mobile,mobileScore:mobile.mobileScore,mobileReasons:mobileResult.reasons,deviceFingerprint:device,deviceScore:device.compositeScore,deviceReasons:device.reasons});}tx.forEach(t=>{const expl=buildExplanation(t);t.reasonCodes=expl.reasonCodes;t.explanation=expl.explanation;t.primaryReason=expl.primaryReason;t.explainability=expl;});return tx;}
+function genInv(n){_s=2201;const tx=[];let ph='0'.repeat(32);for(let i=0;i<n;i++){const f=R()<0.175,p=f?pk(IP):null,w=p?[...p.w]:[1,2,3,4,5,6],{canonical:cn,steps:st,violations:vl}=reduce(w),dt=addD(BASE,Math.floor(R()*89)),vn=pk(VENDORS),mg=pk(MATG),cc=pk(CCTR),co=pk(COCO),am=f?(p.sev==='CRITICAL'?+(R()*350000+15000).toFixed(2):+(R()*12000+1000).toFixed(2)):+(R()*180000+500).toFixed(2),tr=pk([.21,.21,.21,.06,0]),po=rId('PO-45',5),gr=rId('GR-50',5),pd=JSON.stringify({w,cn,vl,d:fmtD(dt)}),prH=sHash(pd),cH=sHash(ph+prH);ph=cH;const hFlags=[];if(R()<0.03)hFlags.push({...HP[2],score:Math.floor(R()*30+30)});if(R()<0.02)hFlags.push({...HP[5],score:Math.floor(R()*25+45)});tx.push({id:rId('INV-',10),type:'invoice',date:fmtD(dt),ts:dt,word:w.join('-'),cWord:cn.join('-'),rSteps:st.length,vRel:vl.join(';'),poNumber:po,grNumber:gr,viRef:rId('VI-',8),sapDoc:rId('51',8),vendor:{id:vn.id,name:vn.name,country:vn.co,terms:vn.t,bank:vn.b},material:{code:mg.c,name:mg.n,gl:mg.gl},costCenter:{code:cc.c,dept:cc.d,manager:cc.m},companyCode:{code:co.c,name:co.n},amount:am,taxRate:tr,taxAmt:+(am*tr).toFixed(2),gross:+(am*(1+tr)).toFixed(2),currency:'EUR',postDate:fmtD(addD(dt,Math.floor(R()*5))),dueDate:fmtD(addD(dt,parseInt(vn.t.replace('NET','')))),aging:Math.max(0,Math.floor((PEND-addD(dt,parseInt(vn.t.replace('NET',''))))/(864e5))),algebraicVerdict:f?'BLOCKED':'APPROVED',verdict:f?'BLOCKED':hFlags.some(h=>h.score>=60)?'FLAGGED':'APPROVED',finding:p?{...p,materialWeakness:p.mw||false}:null,violations:vl,lat:Math.floor(R()*12)+3,proofHash:prH,chainHash:cH,evidenceId:rId('EVD-',12),heuristicFlags:hFlags,heuristicScore:Math.max(0,...hFlags.map(h=>h.score),0),doraClass:p?p.dora:hFlags.some(h=>h.dora==='HIGH')?'HIGH':'NONE',mobileSignals:null,mobileScore:0,mobileReasons:[],deviceFingerprint:null,deviceScore:0,deviceReasons:[]});}tx.forEach(t=>{const expl=buildExplanation(t);t.reasonCodes=expl.reasonCodes;t.explanation=expl.explanation;t.primaryReason=expl.primaryReason;t.explainability=expl;});return tx;}
+function dlCSV(fn,h,rows){const e=v=>{const s=String(v??'');return s.includes(',')||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`  :s;};const c=[h.join(','),...rows.map(r=>r.map(e).join(','))].join('\n');const b=new Blob(['\ufeff'+c],{type:'text/csv;charset=utf-8;'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=fn;a.click();URL.revokeObjectURL(u);}
+function dlJSON(fn,d){const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=fn;a.click();URL.revokeObjectURL(u);}
+
+// ═══════════════════════════════════════════════════════════════
+//  DESIGN SYSTEM — Executive Command Center
+//  Palette: Deep Obsidian · Champagne Gold · Alabaster
+// ═══════════════════════════════════════════════════════════════
+const C = {
+  // Backgrounds
+  void:    '#070b14',
+  depth:   '#0c1220',
+  surface: '#141c2e',
+  panel:   '#1a2540',
+  card:    '#1e2d4a',
+  lift:    '#243455',
+  line:    '#2e3f5e',
+  // Gold system
+  gold:    '#c9a84c',
+  goldBright: '#e8c96a',
+  goldMid: '#b8962a',
+  goldDim: '#7a5f1a',
+  goldFog: 'rgba(201,168,76,0.08)',
+  goldRim: 'rgba(201,168,76,0.18)',
+  // Text
+  ink:     '#ffffff',
+  sub:     '#c8d4e8',
+  muted:   '#8b9ab5',
+  // Status
+  critical: '#e05252',
+  critBg:   'rgba(224,82,82,0.08)',
+  critRim:  'rgba(224,82,82,0.22)',
+  high:     '#d4923a',
+  highBg:   'rgba(212,146,58,0.08)',
+  highRim:  'rgba(212,146,58,0.22)',
+  med:      '#c9a84c',
+  medBg:    'rgba(201,168,76,0.08)',
+  ok:       '#3daa78',
+  okBg:     'rgba(61,170,120,0.08)',
+  okRim:    'rgba(61,170,120,0.22)',
+  info:     '#4a8fd4',
+  infoBg:   'rgba(74,143,212,0.08)',
+  violet:   '#8b6fe6',
+  violetBg: 'rgba(139,111,230,0.08)',
+  teal:     '#3dbfb0',
+  tealBg:   'rgba(61,191,176,0.08)',
+  // Fonts
+  serif:    "'Playfair Display', 'Georgia', serif",
+  sans:     "'DM Sans', 'Helvetica Neue', sans-serif",
+  mono:     "'JetBrains Mono', 'Fira Code', monospace",
+  // Shadows
+  shadowCard: '0 4px 24px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3)',
+  shadowLift: '0 8px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.4)',
+  glowGold: '0 0 20px rgba(201,168,76,0.12)',
+};
+
+const fmt$ = n => n >= 1e9 ? `€${(n/1e9).toFixed(2)}B` : n >= 1e6 ? `€${(n/1e6).toFixed(2)}M` : n >= 1e3 ? `€${(n/1e3).toFixed(0)}K` : `€${n.toFixed(0)}`;
+const fmtPct = (n, d) => `${(n/d*100).toFixed(1)}%`;
+
+// ═══════════════════════════════════════════════════════════════
+//  DATA HOOK
+// ═══════════════════════════════════════════════════════════════
+function useData() {
+  return useMemo(() => {
+    const pay = genPay(600), inv = genInv(600), all = [...pay, ...inv].sort((a,b) => b.ts - a.ts);
+    const bl = all.filter(t => t.algebraicVerdict === 'BLOCKED'), fl = all.filter(t => t.verdict === 'FLAGGED' && t.algebraicVerdict !== 'BLOCKED'), ap = all.filter(t => t.verdict === 'APPROVED');
+    const pBl = pay.filter(t => t.algebraicVerdict === 'BLOCKED'), iBl = inv.filter(t => t.algebraicVerdict === 'BLOCKED');
+    const pFl = pay.filter(t => t.verdict === 'FLAGGED' && t.algebraicVerdict !== 'BLOCKED');
+    const tExp = bl.reduce((s,t) => s + (t.gross || t.amount), 0), pExp = pBl.reduce((s,t) => s + t.amount, 0), iExp = iBl.reduce((s,t) => s + (t.gross || t.amount), 0);
+    const mw = iBl.filter(t => t.finding?.materialWeakness);
+    const weeks = []; for (let i = 0; i < 13; i++) { const ws = addD(BASE, i*7), we = addD(ws, 6); const wTx = all.filter(t => t.ts >= ws && t.ts <= we); const wBl = wTx.filter(t => t.algebraicVerdict === 'BLOCKED'); const wFl = wTx.filter(t => t.verdict === 'FLAGGED' && t.algebraicVerdict !== 'BLOCKED'); weeks.push({ name: `W${i+1}`, week: `${fmtD(ws).slice(5)}`, total: wTx.length, blocked: wBl.length, flagged: wFl.length, approved: wTx.length - wBl.length - wFl.length, exposure: Math.round(wBl.reduce((s,t) => s + (t.gross || t.amount), 0)) }); }
+    const months = [{n:'Dec 25',m:11,y:2025},{n:'Jan 26',m:0,y:2026},{n:'Feb 26',m:1,y:2026}];
+    const monthly = months.map(x => { const mTx = all.filter(t => t.ts.getMonth()===x.m && t.ts.getFullYear()===x.y); const mBl = mTx.filter(t => t.algebraicVerdict==='BLOCKED'); const mFl = mTx.filter(t => t.verdict==='FLAGGED' && t.algebraicVerdict!=='BLOCKED'); return { month: x.n, total: mTx.length, blocked: mBl.length, flagged: mFl.length, exposure: mBl.reduce((s,t) => s + (t.gross || t.amount), 0) }; });
+    const cats = {}; bl.forEach(t => { if (t.finding) { const c = t.finding.cat; cats[c] = (cats[c] || {count:0,exp:0}); cats[c].count++; cats[c].exp += (t.gross || t.amount); }});
+    const sevData = [{name:'Critical',value:bl.filter(t=>t.finding?.sev==='CRITICAL').length,color:C.critical},{name:'High',value:bl.filter(t=>t.finding?.sev==='HIGH').length,color:C.gold}];
+    const typeData = [{name:'Payments',value:pBl.length,color:C.info},{name:'Invoices',value:iBl.length,color:C.gold}];
+    const vExp = {}; iBl.forEach(t => { const v = t.vendor.name; vExp[v] = (vExp[v] || {count:0,amount:0}); vExp[v].count++; vExp[v].amount += (t.gross || t.amount); });
+    const dExp = {}; iBl.forEach(t => { const d = t.costCenter.dept; dExp[d] = (dExp[d] || {count:0,amount:0}); dExp[d].count++; dExp[d].amount += (t.gross || t.amount); });
+    const riskMap = {}; bl.forEach(t => { if (t.finding) { const k = t.finding.code; riskMap[k] = riskMap[k] || {...t.finding,count:0,exp:0}; riskMap[k].count++; riskMap[k].exp += (t.gross || t.amount); }});
+    const topRisks = Object.values(riskMap).sort((a,b) => b.exp - a.exp);
+    const overdue = iBl.filter(t => t.aging > 0).sort((a,b) => b.aging - a.aging);
+    const vopStats = { match: pay.filter(t => t.vop?.result === 'MATCH').length, close: pay.filter(t => t.vop?.result === 'CLOSE_MATCH').length, no: pay.filter(t => t.vop?.result === 'NO_MATCH').length };
+    const doraStats = { CRITICAL: all.filter(t => t.doraClass==='CRITICAL').length, HIGH: all.filter(t => t.doraClass==='HIGH').length, MEDIUM: all.filter(t => t.doraClass==='MEDIUM').length, LOW: all.filter(t => t.doraClass==='LOW').length };
+    const botDetected = pay.filter(t => t.mobileScore >= 70).length;
+    const touchAnomalies = pay.filter(t => t.mobileSignals && t.mobileSignals.touchPressure.std < .02).length;
+    const deviceHigh = pay.filter(t => t.deviceFingerprint?.riskLevel === 'HIGH').length;
+    const deviceMed = pay.filter(t => t.deviceFingerprint?.riskLevel === 'MEDIUM').length;
+    const withReasons = all.filter(t => t.reasonCodes?.length > 0).length;
+    const avgReasons = withReasons > 0 ? (all.reduce((s,t) => s + (t.reasonCodes?.length || 0), 0) / withReasons).toFixed(1) : '0';
+    const reasonBySource = {ALGEBRAIC:0,HEURISTIC:0,MOBILE:0,DEVICE:0}; all.forEach(t => (t.reasonCodes || []).forEach(r => { if (reasonBySource[r.source] !== undefined) reasonBySource[r.source]++; }));
+    const headlessBrowsers = pay.filter(t => t.deviceFingerprint?.userAgent?.includes('Headless')).length;
+    return { pay, inv, all, bl, fl, ap, pBl, iBl, pFl, tExp, pExp, iExp, mw, weeks, monthly, cats, sevData, typeData, vExp, dExp, topRisks, overdue, vopStats, doraStats, botDetected, touchAnomalies, deviceHigh, deviceMed, withReasons, avgReasons, reasonBySource, headlessBrowsers };
+  }, []);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PRIMITIVE COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+
+// Separator line with optional label
+const Divider = ({ label, mt = 24, mb = 20 }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: mt, marginBottom: mb }}>
+    <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${C.line}, transparent)` }} />
+    {label && <span style={{ fontSize: 10, fontFamily: C.mono, color: C.sub, letterSpacing: '.1em', textTransform: 'uppercase' }}>{label}</span>}
+    <div style={{ flex: 1, height: 1, background: `linear-gradient(270deg, ${C.line}, transparent)` }} />
+  </div>
+);
+
+// Status badge — refined, tight
+const Chip = ({ children, color = C.sub, bg = 'transparent' }) => (
+  <span style={{
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '2px 8px', borderRadius: 4,
+    fontSize: 9, fontWeight: 700, fontFamily: C.mono,
+    letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+    color, background: bg || `${color}12`,
+    border: `1px solid ${color}28`,
+  }}>{children}</span>
+);
+
+const SevChip = ({ s }) => s === 'CRITICAL'
+  ? <Chip color={C.critical} bg={C.critBg}>● Critical</Chip>
+  : s === 'HIGH' ? <Chip color={C.high} bg={C.highBg}>◆ High</Chip>
+  : <Chip color={C.med} bg={C.medBg}>▲ Medium</Chip>;
+
+const MethodChip = ({ m }) => m === 'ALGEBRAIC'
+  ? <Chip color={C.ok} bg={C.okBg}>✓ Proven</Chip>
+  : <Chip color={C.high} bg={C.highBg}>△ Heuristic</Chip>;
+
+const VerdictChip = ({ v }) => v === 'BLOCKED'
+  ? <Chip color={C.critical} bg={C.critBg}>⊗ Blocked</Chip>
+  : v === 'FLAGGED' ? <Chip color={C.high} bg={C.highBg}>⚑ Flagged</Chip>
+  : <Chip color={C.ok} bg={C.okBg}>✓ Approved</Chip>;
+
+const DoraChip = ({ d }) => {
+  const map = { CRITICAL: [C.critical, C.critBg], HIGH: [C.high, C.highBg], MEDIUM: [C.med, C.medBg], LOW: [C.ok, C.okBg], NONE: [C.muted, 'transparent'] };
+  const [c, bg] = map[d] || map.NONE;
+  return <Chip color={c} bg={bg}>{d || '—'}</Chip>;
+};
+
+// Panel / card container
+const Panel = ({ children, style = {}, accent, hover = true }) => {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => hover && setHov(true)}
+      onMouseLeave={() => hover && setHov(false)}
+      style={{
+        background: C.card,
+        borderRadius: 10,
+        border: `1px solid ${hov ? C.line : '#1e2d47'}`,
+        boxShadow: hov ? C.shadowLift : C.shadowCard,
+        overflow: 'hidden',
+        transition: 'all 0.2s ease',
+        transform: hov ? 'translateY(-2px)' : 'none',
+        ...(accent ? { borderTop: `2px solid ${accent}` } : {}),
+        ...style,
+      }}
+    >{children}</div>
+  );
+};
+
+// Panel inner padding wrapper
+const PanelBody = ({ children, p = '20px 22px' }) => (
+  <div style={{ padding: p }}>{children}</div>
+);
+
+// Section heading inside a panel
+const PanelTitle = ({ children, sub, action }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+    <div>
+      <div style={{ fontSize: 11, fontFamily: C.mono, color: C.gold, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 4 }}>{children}</div>
+      {sub && <div style={{ fontSize: 12, color: C.sub }}>{sub}</div>}
+    </div>
+    {action && <div>{action}</div>}
+  </div>
+);
+
+// Page section heading
+const Section = ({ children, sub, badge, right }) => (
+  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontFamily: C.serif, fontWeight: 700, color: C.ink, letterSpacing: '-.01em' }}>{children}</h2>
+        {badge && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: C.goldFog, border: `1px solid ${C.goldRim}`, color: C.gold, fontFamily: C.mono }}>{badge}</span>}
+      </div>
+      {sub && <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>{sub}</div>}
+    </div>
+    {right && <div style={{ display: 'flex', gap: 8 }}>{right}</div>}
+  </div>
+);
+
+// KPI metric tile
+const Metric = ({ label, value, delta, sub, color = C.ink, accent, icon }) => (
+  <Panel accent={accent} style={{ flex: 1, minWidth: 160 }}>
+    <PanelBody p="18px 20px">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ fontSize: 10, fontFamily: C.mono, color: C.sub, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10 }}>{label}</div>
+        {icon && <div style={{ width: 28, height: 28, borderRadius: 6, background: accent ? `${accent}15` : C.panel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{icon}</div>}
+      </div>
+      <div style={{ fontSize: 30, fontWeight: 800, color, fontFamily: C.sans, letterSpacing: '-.03em', lineHeight: 1, marginBottom: 6 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: C.sub }}>{sub}</div>}
+      {delta !== undefined && <div style={{ fontSize: 10, marginTop: 6, fontFamily: C.mono, color: delta >= 0 ? C.critical : C.ok }}>{delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs prior</div>}
+    </PanelBody>
+  </Panel>
+);
+
+// Executive button
+const Btn = ({ onClick, children, variant = 'ghost' }) => {
+  const [hov, setHov] = useState(false);
+  const styles = {
+    primary: { bg: C.gold, fg: C.void, border: 'none', hbg: C.goldBright },
+    ghost: { bg: 'transparent', fg: C.sub, border: `1px solid ${C.line}`, hbg: C.panel },
+    danger: { bg: 'transparent', fg: C.critical, border: `1px solid ${C.critRim}`, hbg: C.critBg },
+  };
+  const s = styles[variant] || styles.ghost;
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '7px 14px', borderRadius: 7,
+        background: hov ? s.hbg : s.bg,
+        color: hov && variant === 'primary' ? C.void : s.fg,
+        border: s.border || 'none',
+        fontSize: 11, fontWeight: 600, fontFamily: C.sans,
+        cursor: 'pointer', letterSpacing: '.02em',
+        transition: 'all 0.15s', whiteSpace: 'nowrap',
+      }}
+    >{children}</button>
+  );
+};
+
+// Tab button
+const Tab = ({ id, active, onClick, children }) => (
+  <button onClick={() => onClick(id)} style={{
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '7px 16px', borderRadius: 7, border: 'none',
+    background: active ? C.goldFog : 'transparent',
+    borderBottom: active ? `2px solid ${C.gold}` : '2px solid transparent',
+    color: active ? C.gold : C.sub,
+    fontSize: 11, fontWeight: active ? 700 : 500, fontFamily: C.sans,
+    cursor: 'pointer', letterSpacing: '.02em', transition: 'all 0.15s',
+  }}>{children}</Tab>
+);
+
+// Sparkline progress bar
+const Bar$ = ({ value, max, color = C.gold, height = 6 }) => (
+  <div style={{ height, borderRadius: height, background: C.panel, overflow: 'hidden', flex: 1 }}>
+    <div style={{ width: `${(value / max) * 100}%`, height: '100%', background: color, borderRadius: height, transition: 'width 0.6s ease' }} />
+  </div>
+);
+
+// Data table
+const DataTable = ({ cols, rows, onRow, expId, renderExp }) => (
+  <div style={{ borderRadius: 8, border: `1px solid ${C.line}`, overflow: 'hidden' }}>
+    {/* Header */}
+    <div style={{ display: 'grid', gridTemplateColumns: cols.map(c => c.w || '1fr').join(' '), padding: '10px 18px', background: C.panel, borderBottom: `1px solid ${C.line}`, gap: 10 }}>
+      {cols.map((c, i) => (
+        <div key={i} style={{ fontSize: 9, fontWeight: 700, color: C.sub, fontFamily: C.mono, textTransform: 'uppercase', letterSpacing: '.1em' }}>{c.label}</div>
+      ))}
+    </div>
+    {/* Rows */}
+    <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+      {rows.map((row, ri) => (
+        <div key={ri}>
+          <div
+            onClick={() => onRow?.(row)}
+            style={{
+              display: 'grid', gridTemplateColumns: cols.map(c => c.w || '1fr').join(' '),
+              padding: '10px 18px', gap: 10,
+              borderBottom: `1px solid ${C.line}`,
+              cursor: onRow ? 'pointer' : 'default',
+              background: expId === row.id ? C.lift : (ri % 2 === 0 ? C.card : C.panel),
+              transition: 'background 0.12s',
+            }}
+            onMouseEnter={e => { if (onRow) e.currentTarget.style.background = C.lift; }}
+            onMouseLeave={e => { e.currentTarget.style.background = expId === row.id ? C.lift : ri % 2 === 0 ? C.card : C.panel; }}
+          >
+            {cols.map((c, ci) => (
+              <div key={ci} style={{ fontSize: 11, color: C.ink, fontFamily: c.mono ? C.mono : C.sans, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                {c.render ? c.render(row) : row[c.key]}
+              </div>
+            ))}
+          </div>
+          {expId === row.id && renderExp && (
+            <div style={{ padding: '20px 22px', background: C.depth, borderBottom: `1px solid ${C.line}` }}>
+              {renderExp(row)}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// Custom chart tooltip
+const ChartTip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, padding: '10px 14px', boxShadow: C.shadowLift }}>
+      <div style={{ fontSize: 10, color: C.gold, fontFamily: C.mono, marginBottom: 6, letterSpacing: '.06em' }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />
+          <span style={{ fontSize: 11, color: C.sub }}>{p.name}:</span>
+          <span style={{ fontSize: 11, color: C.ink, fontWeight: 700 }}>{typeof p.value === 'number' && p.value > 999 ? fmt$(p.value) : p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  LOGO
+// ═══════════════════════════════════════════════════════════════
+const Logo = ({ size = 40 }) => (
+  <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
+    <defs>
+      <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#f0d97a"/>
+        <stop offset="50%" stopColor="#c9a84c"/>
+        <stop offset="100%" stopColor="#7a5f1a"/>
+      </linearGradient>
+    </defs>
+    <path d="M40 5L13 19v21c0 19 27 32 27 32s27-13 27-32V19L40 5z" fill={C.panel} stroke="url(#g1)" strokeWidth="2"/>
+    <text x="40" y="49" textAnchor="middle" fontFamily="Georgia,serif" fontSize="32" fontWeight="900" fill="url(#g1)">H</text>
+    <text x="40" y="61" textAnchor="middle" fontFamily="'JetBrains Mono',monospace" fontSize="6.5" fontWeight="600" fill={C.goldDim} letterSpacing="2">0-HECKE</text>
+  </svg>
+);
+
+// ═══════════════════════════════════════════════════════════════
+//  EXECUTIVE SUMMARY BANNER
+// ═══════════════════════════════════════════════════════════════
+const ExecBanner = ({ data }) => {
+  const blockRate = (data.bl.length / data.all.length * 100).toFixed(1);
+  const fpRate = '0.00';
+  const mwStatus = data.mw.length > 0;
+
+  return (
+    <div style={{
+      background: `linear-gradient(135deg, ${C.depth} 0%, ${C.panel} 40%, ${C.card} 100%)`,
+      border: `1px solid ${C.line}`,
+      borderLeft: `3px solid ${C.gold}`,
+      borderRadius: 10,
+      padding: '20px 28px',
+      marginBottom: 24,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Background watermark */}
+      <div style={{ position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', opacity: 0.03 }}>
+        <svg width="200" height="200" viewBox="0 0 80 80"><path d="M40 5L13 19v21c0 19 27 32 27 32s27-13 27-32V19L40 5z" fill={C.gold}/></svg>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1, flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 10, fontFamily: C.mono, color: C.gold, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 6 }}>Executive Summary · Period: 1 Dec 2025 – 28 Feb 2026</div>
+          <div style={{ fontSize: 20, fontFamily: C.serif, fontWeight: 700, color: C.ink, marginBottom: 6 }}>
+            {data.all.length.toLocaleString()} transactions analyzed · {data.bl.length} algebraically blocked · {fmt$(data.tExp)} exposure prevented
+          </div>
+          <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.6 }}>
+            Dual-engine detection: {PP.length + IP.length} algebraically proven patterns + {HP.length} heuristic signals. Zero false positives (algebraic). {mwStatus ? <><span style={{ color: C.critical, fontWeight: 700 }}>⚠ Material weakness detected — SOX remediation required.</span></> : <span style={{ color: C.ok }}>✓ No material weakness identified.</span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
+          {[
+            { label: 'Block Rate', value: `${blockRate}%`, color: C.critical },
+            { label: 'FP Rate (Alg.)', value: `${fpRate}%`, color: C.ok },
+            { label: 'DORA Critical', value: data.doraStats.CRITICAL, color: C.critical },
+            { label: 'Patterns', value: PP.length + IP.length + HP.length, color: C.gold },
+          ].map((s, i) => (
+            <div key={i} style={{ textAlign: 'center', padding: '8px 16px', borderLeft: i > 0 ? `1px solid ${C.line}` : 'none' }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: C.sans, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 9, color: C.sub, fontFamily: C.mono, letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 4 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  VIEWS
+// ═══════════════════════════════════════════════════════════════
+function OverviewView({ data }) {
+  const vendorRows = Object.entries(data.vExp).map(([n, d]) => ({ name: n, ...d })).sort((a, b) => b.amount - a.amount).slice(0, 8);
+  const maxVendor = Math.max(...vendorRows.map(v => v.amount));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <ExecBanner data={data} />
+
+      {/* KPI row */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Metric label="Total Transactions" value={data.all.length.toLocaleString()} sub="Dec 2025 – Feb 2026" icon="⚡" accent={C.info} />
+        <Metric label="Algebraically Blocked" value={data.bl.length} sub={`${fmtPct(data.bl.length, data.all.length)} of total volume`} color={C.critical} icon="⊗" accent={C.critical} />
+        <Metric label="Flagged for Review" value={data.fl.length} sub="Heuristic — human review" color={C.high} icon="⚑" accent={C.high} />
+        <Metric label="Exposure Prevented" value={fmt$(data.tExp)} sub="Blocked transactions value" color={C.gold} icon="€" accent={C.gold} />
+        <Metric label="VoP Issues" value={data.vopStats.no + data.vopStats.close} sub={`${data.vopStats.no} NO_MATCH · ${data.vopStats.close} CLOSE`} color={C.med} icon="⚠" accent={C.med} />
+      </div>
+
+      {/* Charts row 1 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
+        <Panel>
+          <PanelBody>
+            <PanelTitle sub="Weekly blocks and heuristic flags — rolling 13 weeks">Detection Trend</PanelTitle>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={data.weeks}>
+                <defs>
+                  <linearGradient id="gBl" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={C.critical} stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor={C.critical} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="gFl" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={C.high} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={C.high} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke={C.line} vertical={false}/>
+                <XAxis dataKey="week" tick={{ fontSize: 9, fill: C.sub, fontFamily: C.mono }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize: 9, fill: C.sub, fontFamily: C.mono }} axisLine={false} tickLine={false}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Area type="monotone" dataKey="blocked" name="Blocked" stroke={C.critical} fill="url(#gBl)" strokeWidth={2}/>
+                <Area type="monotone" dataKey="flagged" name="Flagged" stroke={C.high} fill="url(#gFl)" strokeWidth={1.5}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </PanelBody>
+        </Panel>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Panel style={{ flex: 1 }}>
+            <PanelBody>
+              <PanelTitle>Severity Distribution</PanelTitle>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <ResponsiveContainer width={80} height={80}>
+                  <PieChart>
+                    <Pie data={data.sevData} cx="50%" cy="50%" innerRadius={22} outerRadius={38} dataKey="value" stroke="none">
+                      {data.sevData.map((e, i) => <Cell key={i} fill={e.color}/>)}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ flex: 1 }}>
+                  {data.sevData.map(s => (
+                    <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }}/>
+                        <span style={{ fontSize: 11, color: C.sub }}>{s.name}</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: s.color, fontFamily: C.sans }}>{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </PanelBody>
+          </Panel>
+          <Panel style={{ flex: 1 }}>
+            <PanelBody>
+              <PanelTitle>DORA Classification</PanelTitle>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[['CRITICAL', C.critical], ['HIGH', C.high], ['MEDIUM', C.med], ['LOW', C.ok]].map(([k, c]) => (
+                  <div key={k} style={{ padding: '8px 10px', borderRadius: 6, background: `${c}10`, border: `1px solid ${c}20`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: c, fontFamily: C.sans }}>{data.doraStats[k] || 0}</div>
+                    <div style={{ fontSize: 9, color: c, fontFamily: C.mono, letterSpacing: '.08em' }}>{k}</div>
+                  </div>
+                ))}
+              </div>
+            </PanelBody>
+          </Panel>
+        </div>
+      </div>
+
+      {/* Charts row 2 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <Panel>
+          <PanelBody>
+            <PanelTitle sub="Monthly blocked, flagged, and total volume">Monthly Volume Analysis</PanelTitle>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={data.monthly} barGap={3}>
+                <CartesianGrid strokeDasharray="3 6" stroke={C.line} vertical={false}/>
+                <XAxis dataKey="month" tick={{ fontSize: 9, fill: C.sub, fontFamily: C.mono }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize: 9, fill: C.sub, fontFamily: C.mono }} axisLine={false} tickLine={false}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Bar dataKey="blocked" name="Blocked" fill={C.critical} radius={[4, 4, 0, 0]} barSize={18}/>
+                <Bar dataKey="flagged" name="Flagged" fill={C.high} radius={[4, 4, 0, 0]} barSize={18}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </PanelBody>
+        </Panel>
+
+        {/* Material weakness / SOX status */}
+        <Panel accent={data.mw.length > 0 ? C.critical : C.ok}>
+          <PanelBody>
+            <PanelTitle sub="PCAOB AS 2201 ¶A14 — SOX 302/404">Internal Control Status</PanelTitle>
+            {data.mw.length > 0 ? (
+              <div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, background: C.critBg, border: `1px solid ${C.critRim}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>⚠</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.critical, fontFamily: C.sans }}>Material Weakness Identified</div>
+                    <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>SOX 302/404 remediation required immediately</div>
+                  </div>
+                </div>
+                <div style={{ padding: '12px 14px', background: C.critBg, border: `1px solid ${C.critRim}`, borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.7 }}>
+                    <span style={{ color: C.critical, fontWeight: 700 }}>{data.mw.length}</span> finding(s) · <strong style={{ color: C.ink }}>Pay Before 3-Way Match</strong> · Exposure: <strong style={{ color: C.critical }}>{fmt$(data.mw.reduce((s, t) => s + (t.gross || t.amount), 0))}</strong>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: C.okBg, border: `1px solid ${C.okRim}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>✓</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.ok, fontFamily: C.sans }}>No Material Weakness</div>
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>All controls operating effectively within scope</div>
+                </div>
+              </div>
+            )}
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* Bottom row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <Panel>
+          <PanelBody>
+            <PanelTitle sub="Top blocked patterns ranked by total financial exposure">Risk Exposure Ranking</PanelTitle>
+            {data.topRisks.slice(0, 7).map((r, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', paddingBottom: 10, marginBottom: 10, borderBottom: i < 6 ? `1px solid ${C.line}` : 'none' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: C.mono, color: C.sub, minWidth: 18 }}>#{i + 1}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.ink, marginBottom: 2 }}>{r.name}</div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <Bar$ value={r.exp} max={data.topRisks[0]?.exp || 1} color={r.sev === 'CRITICAL' ? C.critical : C.gold} height={4}/>
+                    <span style={{ fontSize: 10, color: C.sub, whiteSpace: 'nowrap' }}>{r.count}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', minWidth: 64 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.gold, fontFamily: C.sans }}>{fmt$(r.exp)}</div>
+                </div>
+              </div>
+            ))}
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelBody>
+            <PanelTitle sub="Blocked invoice exposure by vendor">Vendor Exposure Heatmap</PanelTitle>
+            {vendorRows.map((v, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 10, color: C.sub, fontFamily: C.mono, minWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name.split(' ')[0]}</span>
+                <Bar$ value={v.amount} max={maxVendor} color={`rgba(201,168,76,${0.3 + 0.7 * (v.amount / maxVendor)})`}/>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, fontFamily: C.sans, minWidth: 60, textAlign: 'right' }}>{fmt$(v.amount)}</span>
+              </div>
+            ))}
+          </PanelBody>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  AUDIT VIEW
+// ═══════════════════════════════════════════════════════════════
+function AuditView({ data }) {
+  const [expId, setExpId] = useState(null);
+  const [scope, setScope] = useState('all');
+  const bl = scope === 'pay' ? data.pBl : scope === 'inv' ? data.iBl : data.bl;
+
+  const soxMap = {}; data.bl.forEach(t => { if (t.finding) { const k = t.finding.sox; soxMap[k] = soxMap[k] || { ...t.finding, count: 0, exp: 0 }; soxMap[k].count++; soxMap[k].exp += (t.gross || t.amount); }});
+  const soxE = Object.values(soxMap).sort((a, b) => b.exp - a.exp);
+
+  const xFlat = useCallback(() => { dlCSV('Audit_Flat_' + fmtD(new Date()) + '.csv', ['Evidence','TX','Date','Type','Code','Finding','Sev','Category','Method','SOX','ISAE','PCAOB','Reg','DORA_Class','ISO_Msg','Word','Canonical','Steps','Violations','Amount','Gross','VoP','Proof_Hash','Chain_Hash','Counterparty','Heuristic_Score','MW','Mobile_Score','Device_Risk','Reason_Codes','Explanation'], data.bl.map(t => [t.evidenceId,t.id,t.date,t.type,t.finding?.code,t.finding?.name,t.finding?.sev,t.finding?.cat,t.finding?.method,t.finding?.sox,t.finding?.isae,t.finding?.pcaob,t.finding?.reg,t.doraClass,t.iso20022?.msgType||'',t.word,t.cWord,t.rSteps,t.vRel,t.amount,t.gross||t.amount,t.vop?.result||'',t.proofHash,t.chainHash,t.type==='payment'?t.creditor.name:t.vendor?.name,t.heuristicScore,t.finding?.materialWeakness?'YES':'',t.mobileScore||0,t.deviceFingerprint?.riskLevel||'N/A',(t.reasonCodes||[]).map(rc=>rc.code).join(';'),t.explanation||''])); }, [data]);
+  const xMatrix = useCallback(() => { dlCSV('Control_Matrix_'+fmtD(new Date())+'.csv',['SOX','ISAE','PCAOB','Control','Finding','Method','DORA','Sev','Count','Exposure','Effective'],soxE.map(s=>[s.sox,s.isae,s.pcaob,s.ctrl,s.name,s.method,s.dora,s.sev,s.count,s.exp.toFixed(2),'No'])); }, [soxE]);
+  const xProof = useCallback(() => { dlJSON('Proof_Chain_'+fmtD(new Date())+'.json',{metadata:{engine:'Hecke Platform v4.2',algebra:'H₀(Sₙ)',doi:['10.5281/zenodo.18609841','10.5281/zenodo.18642975'],period:'2025-12-01/2026-02-28'},findings:data.bl.map(t=>({evidence:t.evidenceId,tx:t.id,date:t.date,type:t.type,finding:t.finding,doraClass:t.doraClass,iso20022:t.iso20022,vop:t.vop,proof:{word:t.word,canonical:t.cWord,steps:t.rSteps,violations:t.vRel,hash:t.proofHash,chain:t.chainHash},amount:t.gross||t.amount,explainability:{reasonCodes:t.reasonCodes,explanation:t.explanation,primaryReason:t.primaryReason}}))}); }, [data]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Header */}
+      <Panel accent={C.gold} hover={false}>
+        <PanelBody p="20px 24px">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 10, fontFamily: C.mono, color: C.gold, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 6 }}>Audit & Compliance Console</div>
+              <div style={{ fontSize: 16, fontFamily: C.serif, fontWeight: 700, color: C.ink }}>SOX 404 · ISAE 3402 Type II · PCAOB AS 2201 · DORA EU 2022/2554</div>
+              <div style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>Complete evidence package with proof chains, reason codes, and regulatory cross-references</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Btn onClick={xFlat}>⬇ Audit Flat File</Btn>
+              <Btn onClick={xMatrix}>⬇ Control Matrix</Btn>
+              <Btn onClick={xProof} variant="primary">⬇ Proof Chain JSON</Btn>
+            </div>
+          </div>
+        </PanelBody>
+      </Panel>
+
+      {/* KPIs */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Metric label="Total Findings" value={data.bl.length} color={C.critical} icon="⊗" accent={C.critical}/>
+        <Metric label="Heuristic Flags" value={data.fl.length} color={C.high} icon="⚑" accent={C.high}/>
+        <Metric label="Material Weakness" value={data.mw.length} color={data.mw.length ? C.critical : C.ok} icon={data.mw.length ? '⚠' : '✓'} accent={data.mw.length ? C.critical : C.ok}/>
+        <Metric label="Algebraic FP Rate" value="0.00%" sub="Mathematically guaranteed" color={C.ok} icon="✓" accent={C.ok}/>
+        <Metric label="AI Act Art. 86" value={data.withReasons} sub={`Avg ${data.avgReasons} reasons/TX`} color={C.info} icon="⚖" accent={C.info}/>
+      </div>
+
+      {/* Control Matrix */}
+      <Section badge={`${soxE.length} Controls`} right={<Btn onClick={xMatrix}>Export Matrix</Btn>}>
+        Control Effectiveness Matrix
+        <span style={{ fontSize: 12, fontFamily: C.sans, fontWeight: 400, color: C.sub }}><br/>SOX / ISAE 3402 / PCAOB — all algebraically verified controls show 0.00% false positive rate</span>
+      </Section>
+      <DataTable
+        cols={[
+          { label: 'SOX Ref', w: '90px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.ink }}>{r.sox}</span> },
+          { label: 'ISAE', w: '80px', mono: true, render: r => <span style={{ color: C.sub }}>{r.isae}</span> },
+          { label: 'Control Objective', w: '1fr', render: r => <div><div style={{ fontWeight: 600, color: C.ink, fontSize: 11 }}>{r.name}</div><div style={{ fontSize: 10, color: C.sub }}>{r.ctrl}</div></div> },
+          { label: 'Method', w: '90px', render: r => <MethodChip m={r.method}/> },
+          { label: 'DORA', w: '70px', render: r => <DoraChip d={r.dora}/> },
+          { label: 'Count', w: '50px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.critical }}>{r.count}</span> },
+          { label: 'Exposure', w: '90px', mono: true, render: r => <span style={{ fontWeight: 600, color: C.gold }}>{fmt$(r.exp)}</span> },
+          { label: 'Status', w: '80px', render: r => <Chip color={C.critical} bg={C.critBg}>Remediate</Chip> },
+        ]}
+        rows={soxE}
+      />
+
+      <Divider label="Finding Register" />
+
+      {/* Scope tabs */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.line}`, paddingBottom: 0, marginBottom: 16 }}>
+        {[['all','All Findings', data.bl.length], ['pay','Payments', data.pBl.length], ['inv','Invoices', data.iBl.length]].map(([k, l, n]) => (
+          <Tab key={k} id={k} active={scope === k} onClick={setScope}>{l} ({n})</Tab>
+        ))}
+      </div>
+
+      <DataTable
+        cols={[
+          { label: 'Date', w: '80px', mono: true, render: r => <span style={{ color: C.sub }}>{r.date}</span> },
+          { label: 'Transaction ID', w: '110px', mono: true, render: r => <span style={{ color: C.ink, fontWeight: 600 }}>{r.id}</span> },
+          { label: 'Method', w: '90px', render: r => <MethodChip m={r.finding?.method}/> },
+          { label: 'Finding', w: '1fr', render: r => <span style={{ fontWeight: 600, color: C.ink, fontSize: 11 }}>{r.finding?.name}</span> },
+          { label: 'DORA', w: '70px', render: r => <DoraChip d={r.doraClass}/> },
+          { label: 'Severity', w: '80px', render: r => <SevChip s={r.finding?.sev}/> },
+          { label: 'Exposure', w: '100px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.gold }}>€{(r.gross || r.amount).toLocaleString('en', { minimumFractionDigits: 0 })}</span> },
+        ]}
+        rows={bl.slice(0, 30)}
+        onRow={r => setExpId(expId === r.id ? null : r.id)}
+        expId={expId}
+        renderExp={r => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 20, fontSize: 11 }}>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.gold, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>Finding Detail</div>
+              <div style={{ lineHeight: 1.9, color: C.ink }}>
+                <div><span style={{ color: C.sub }}>Category:</span> <span style={{ color: C.ink }}>{r.finding.cat}</span></div>
+                <div><span style={{ color: C.sub }}>Regulation:</span> <span style={{ color: C.ink, fontSize: 10 }}>{r.finding.reg}</span></div>
+                <div><span style={{ color: C.sub }}>Risk:</span> <span style={{ color: C.ink }}>{r.finding.risk}</span></div>
+                <div><span style={{ color: C.sub }}>DORA Class:</span> <DoraChip d={r.doraClass}/></div>
+                {r.finding.materialWeakness && <div style={{ marginTop: 6 }}><Chip color={C.critical} bg={C.critBg}>⚠ Material Weakness — PCAOB AS 2201.A14</Chip></div>}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.gold, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>ISO 20022 & VoP</div>
+              <div style={{ lineHeight: 1.9, color: C.ink }}>
+                {r.iso20022 ? <>
+                  <div><span style={{ color: C.sub }}>Msg:</span> <span style={{ fontFamily: C.mono, fontSize: 10, color: C.ink }}>{r.iso20022.msgType}</span></div>
+                  <div><span style={{ color: C.sub }}>MsgID:</span> <span style={{ fontFamily: C.mono, fontSize: 10, color: C.ink }}>{r.iso20022.msgId}</span></div>
+                  <div><span style={{ color: C.sub }}>E2E:</span> <span style={{ fontFamily: C.mono, fontSize: 10, color: C.ink }}>{r.iso20022.endToEndId}</span></div>
+                </> : <span style={{ color: C.sub }}>N/A (invoice type)</span>}
+                {r.vop && <div style={{ marginTop: 6 }}><span style={{ color: C.sub }}>VoP:</span> <Chip color={r.vop.result === 'MATCH' ? C.ok : r.vop.result === 'CLOSE_MATCH' ? C.med : C.critical}>{r.vop.result}</Chip></div>}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.gold, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>Cryptographic Proof</div>
+              <div style={{ lineHeight: 1.9, color: C.ink, fontFamily: C.mono, fontSize: 10 }}>
+                <div style={{ marginBottom: 4 }}><span style={{ color: C.sub, fontFamily: C.sans }}>Evidence:</span> {r.evidenceId}</div>
+                <div style={{ marginBottom: 4 }}><span style={{ color: C.sub, fontFamily: C.sans }}>Word:</span> {r.word} <span style={{ color: C.ok }}>→ {r.cWord}</span></div>
+                <div style={{ color: C.sub, fontSize: 9, wordBreak: 'break-all' }}>{r.proofHash}</div>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.gold, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>Reason Codes · EU AI Act Art. 86</div>
+              {(r.reasonCodes || []).slice(0, 4).map((rc, i) => (
+                <div key={i} style={{ padding: '5px 0', borderBottom: i < 3 ? `1px solid ${C.line}` : 'none' }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                    <span style={{ fontFamily: C.mono, fontSize: 9, color: rc.source === 'ALGEBRAIC' ? C.ok : C.high, fontWeight: 700 }}>{rc.code}</span>
+                    <Chip color={C.muted}>{rc.source}</Chip>
+                    <span style={{ fontSize: 9, color: C.sub }}>{rc.confidence || 100}%</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: C.ink }}>{rc.text?.slice(0, 65)}{rc.text?.length > 65 ? '…' : ''}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ACCOUNTING VIEW
+// ═══════════════════════════════════════════════════════════════
+function AccountingView({ data }) {
+  const [tab, setTab] = useState('queue');
+  const q = [...data.bl, ...data.fl].sort((a, b) => (b.gross || b.amount) - (a.gross || a.amount));
+  const vR = Object.entries(data.vExp).map(([n, d]) => ({ name: n, ...d })).sort((a, b) => b.amount - a.amount);
+  const dR = Object.entries(data.dExp).map(([n, d]) => ({ name: n, ...d })).sort((a, b) => b.amount - a.amount);
+  const maxV = Math.max(...vR.map(v => v.amount));
+  const maxD = Math.max(...dR.map(v => v.amount));
+  const xQ = useCallback(() => { dlCSV('Remediation_Queue.csv', ['TX','Date','Type','Verdict','Counterparty','Finding','Sev','Amount','Gross','Dept','Manager','Status'], q.map(t => [t.id,t.date,t.type,t.verdict,t.type==='payment'?t.creditor.name:t.vendor?.name,t.finding?.name||t.heuristicFlags?.[0]?.name||'—',t.finding?.sev||'MEDIUM',t.amount,t.gross||t.amount,t.costCenter?.dept||'',t.costCenter?.manager||'','PENDING'])); }, [q]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <Panel accent={C.info} hover={false}>
+        <PanelBody p="20px 24px">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 10, fontFamily: C.mono, color: C.info, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 6 }}>Accounting Operations</div>
+              <div style={{ fontSize: 16, fontFamily: C.serif, fontWeight: 700, color: C.ink }}>Remediation Queue · Vendor Analysis · Department Risk · Aging Review</div>
+            </div>
+            <Btn onClick={xQ} variant="primary">⬇ Export Queue</Btn>
+          </div>
+        </PanelBody>
+      </Panel>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Metric label="Blocked" value={data.bl.length} color={C.critical} icon="⊗" accent={C.critical}/>
+        <Metric label="Under Review" value={data.fl.length} color={C.high} icon="⚑" accent={C.high}/>
+        <Metric label="Total Open Items" value={data.bl.length + data.fl.length} sub={fmt$(data.tExp)} color={C.gold} icon="⚡" accent={C.gold}/>
+        <Metric label="Overdue Invoices" value={data.overdue.length} color={data.overdue.length ? C.med : C.ok} icon={data.overdue.length ? '⏱' : '✓'} accent={data.overdue.length ? C.med : C.ok}/>
+      </div>
+
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.line}`, marginBottom: 0 }}>
+        {[['queue','Remediation Queue'], ['vendor','By Vendor'], ['dept','By Department'], ['aging','Aging Report']].map(([k, l]) => (
+          <Tab key={k} id={k} active={tab === k} onClick={setTab}>{l}</Tab>
+        ))}
+      </div>
+
+      {tab === 'queue' && (
+        <DataTable
+          cols={[
+            { label: 'Date', w: '80px', mono: true, render: r => <span style={{ color: C.sub }}>{r.date}</span> },
+            { label: 'ID', w: '110px', mono: true, render: r => <span style={{ color: C.ink, fontWeight: 600 }}>{r.id}</span> },
+            { label: 'Status', w: '90px', render: r => <VerdictChip v={r.verdict}/> },
+            { label: 'Counterparty', w: '1fr', render: r => <span style={{ fontSize: 11, color: C.ink }}>{r.type === 'payment' ? r.creditor.name : r.vendor?.name}</span> },
+            { label: 'Finding', w: '140px', render: r => <span style={{ fontSize: 10, color: C.high }}>{r.finding?.name || r.heuristicFlags?.[0]?.name || '—'}</span> },
+            { label: 'Method', w: '90px', render: r => <MethodChip m={r.finding?.method || 'HEURISTIC'}/> },
+            { label: 'Exposure', w: '110px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.gold }}>€{(r.gross || r.amount).toLocaleString('en', { minimumFractionDigits: 0 })}</span> },
+          ]}
+          rows={q.slice(0, 30)}
+        />
+      )}
+      {tab === 'vendor' && (
+        <DataTable
+          cols={[
+            { label: 'Vendor', w: '1fr', render: r => <span style={{ fontWeight: 600, color: C.ink }}>{r.name}</span> },
+            { label: 'Findings', w: '70px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.critical }}>{r.count}</span> },
+            { label: 'Exposure', w: '110px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.gold }}>{fmt$(r.amount)}</span> },
+            { label: 'Distribution', w: '200px', render: r => <Bar$ value={r.amount} max={maxV} color={C.gold}/> },
+          ]}
+          rows={vR}
+        />
+      )}
+      {tab === 'dept' && (
+        <DataTable
+          cols={[
+            { label: 'Department', w: '1fr', render: r => <span style={{ fontWeight: 600, color: C.ink }}>{r.name}</span> },
+            { label: 'Findings', w: '70px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.critical }}>{r.count}</span> },
+            { label: 'Exposure', w: '110px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.gold }}>{fmt$(r.amount)}</span> },
+            { label: 'Distribution', w: '200px', render: r => <Bar$ value={r.amount} max={maxD} color={C.info}/> },
+          ]}
+          rows={dR}
+        />
+      )}
+      {tab === 'aging' && (
+        data.overdue.length === 0
+          ? <Panel><PanelBody><div style={{ textAlign: 'center', padding: 40, color: C.ok, fontSize: 14 }}>✓ No overdue items detected</div></PanelBody></Panel>
+          : <DataTable
+              cols={[
+                { label: 'Days', w: '55px', mono: true, render: r => <span style={{ fontWeight: 800, color: r.aging > 60 ? C.critical : r.aging > 30 ? C.high : C.sub }}>{r.aging}d</span> },
+                { label: 'Due Date', w: '90px', mono: true, render: r => <span>{r.dueDate}</span> },
+                { label: 'Invoice', w: '110px', mono: true, render: r => <span style={{ color: C.ink, fontWeight: 600 }}>{r.id}</span> },
+                { label: 'Vendor', w: '1fr', render: r => <span style={{ fontSize: 11, color: C.ink }}>{r.vendor.name}</span> },
+                { label: 'Finding', w: '140px', render: r => <span style={{ fontSize: 10, color: C.critical }}>{r.finding?.name}</span> },
+                { label: 'Gross Amount', w: '110px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.gold }}>€{r.gross.toLocaleString('en', { minimumFractionDigits: 0 })}</span> },
+              ]}
+              rows={data.overdue.slice(0, 25)}
+            />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BIOMETRICS VIEW
+// ═══════════════════════════════════════════════════════════════
+function BiometricsView({ data }) {
+  const [expId, setExpId] = useState(null);
+  const flaggedTx = data.pay.filter(t => t.mobileScore >= 50 || t.deviceScore >= 30).sort((a, b) => (b.mobileScore + b.deviceScore) - (a.mobileScore + a.deviceScore)).slice(0, 20);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <Panel accent={C.violet} hover={false}>
+        <PanelBody p="20px 24px">
+          <div>
+            <div style={{ fontSize: 10, fontFamily: C.mono, color: C.violet, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 6 }}>Behavioral Intelligence Layer · v4.2</div>
+            <div style={{ fontSize: 16, fontFamily: C.serif, fontWeight: 700, color: C.ink }}>Mobile Biometrics · Device Fingerprinting · EU AI Act Art. 86 Explainability</div>
+            <div style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>Touch pressure analysis · Keystroke dynamics · Canvas/WebGL device fingerprinting · Machine-readable reason codes</div>
+          </div>
+        </PanelBody>
+      </Panel>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Metric label="Bot Signals Detected" value={data.botDetected} sub="Automated TX probability ≥70" color={C.critical} icon="🤖" accent={C.critical}/>
+        <Metric label="Touch Anomalies" value={data.touchAnomalies} sub="Pressure outside human range" color={C.high} icon="✋" accent={C.high}/>
+        <Metric label="High-Risk Devices" value={data.deviceHigh} sub={`${data.deviceMed} medium risk`} color={C.med} icon="📱" accent={C.med}/>
+        <Metric label="Headless Browsers" value={data.headlessBrowsers} sub="Automation framework signals" color={C.critical} icon="🔍" accent={C.critical}/>
+        <Metric label="Decisions Explained" value={data.withReasons} sub={`Avg ${data.avgReasons} reason codes/TX`} color={C.ok} icon="⚖" accent={C.ok}/>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <Panel accent={C.violet}>
+          <PanelBody>
+            <PanelTitle sub="Touch pressure, swipe velocity, keystroke dynamics">Mobile Biometric Engine</PanelTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                ['Touch Pressure σ', 'Zero-variance (< 0.01) indicates bot. Human range: 0.10–0.20.', C.violet],
+                ['Swipe Velocity σ', 'Uniform velocity (σ < 15 px/s) = scripted gesture replay.', C.violet],
+                ['Keystroke Dynamics', 'Inter-key std < 5ms = automated input. Human: 30–50ms.', C.violet],
+                ['Touch Area', 'Fixed touch area (σ < 2px²) = synthetic touch event injection.', C.violet],
+              ].map(([label, desc, c]) => (
+                <div key={label} style={{ padding: '10px 12px', background: C.panel, borderRadius: 6, borderLeft: `2px solid ${c}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.ink, marginBottom: 3 }}>{label}</div>
+                  <div style={{ fontSize: 10, color: C.ink }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+
+        <Panel accent={C.teal}>
+          <PanelBody>
+            <PanelTitle sub="Canvas hash, WebGL renderer, user-agent, timezone composite">Device Fingerprinting Engine</PanelTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                ['User-Agent Analysis', '"HeadlessBrowser" string = +40 risk score. PSD2 Art. 97/DORA Art. 17.', C.teal],
+                ['WebGL Renderer', 'SwiftShader = virtual/container environment. +25 risk score.', C.teal],
+                ['Canvas/Font Hashes', 'Deterministic composite ID. Cross-account reuse = HIGH risk.', C.teal],
+                ['Explainability', 'Every decision generates RC-Axx/Hxx/Mxx/Dxx reason codes. EU AI Act Art. 86.', C.teal],
+              ].map(([label, desc, c]) => (
+                <div key={label} style={{ padding: '10px 12px', background: C.panel, borderRadius: 6, borderLeft: `2px solid ${c}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.ink, marginBottom: 3 }}>{label}</div>
+                  <div style={{ fontSize: 10, color: C.ink }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* Reason code source breakdown */}
+      <Panel>
+        <PanelBody>
+          <PanelTitle sub="Machine-readable reason codes by detection source — EU AI Act Art. 86 / GDPR Art. 22">Explainability Coverage</PanelTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+            {[['ALGEBRAIC', data.reasonBySource.ALGEBRAIC, C.ok, 'Deterministic · 100% confidence'],
+              ['HEURISTIC', data.reasonBySource.HEURISTIC, C.high, 'Statistical · probabilistic'],
+              ['MOBILE', data.reasonBySource.MOBILE, C.violet, 'Biometric signals'],
+              ['DEVICE', data.reasonBySource.DEVICE, C.teal, 'Device fingerprint']].map(([src, cnt, c, sub]) => (
+              <div key={src} style={{ padding: '14px 16px', background: C.panel, borderRadius: 8, border: `1px solid ${c}20`, borderTop: `2px solid ${c}` }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: c, fontFamily: C.sans, lineHeight: 1, marginBottom: 4 }}>{cnt}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: c, fontFamily: C.mono, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 4 }}>{src}</div>
+                <div style={{ fontSize: 10, color: C.sub }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+        </PanelBody>
+      </Panel>
+
+      <Section badge={`${flaggedTx.length} transactions`}>Biometric Anomaly Register</Section>
+      <DataTable
+        cols={[
+          { label: 'Date', w: '70px', mono: true, render: r => <span style={{ color: C.sub }}>{r.date}</span> },
+          { label: 'Transaction', w: '110px', mono: true, render: r => <span style={{ color: C.ink, fontWeight: 600 }}>{r.id}</span> },
+          { label: 'Mobile Score', w: '85px', render: r => (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, color: r.mobileScore >= 70 ? C.critical : r.mobileScore >= 40 ? C.high : C.ok, fontFamily: C.mono, fontSize: 12 }}>{r.mobileScore}</span>
+              <Bar$ value={r.mobileScore} max={100} color={r.mobileScore >= 70 ? C.critical : r.mobileScore >= 40 ? C.high : C.ok} height={4}/>
+            </div>
+          )},
+          { label: 'Device Score', w: '80px', render: r => <span style={{ fontWeight: 700, color: r.deviceScore >= 40 ? C.critical : r.deviceScore >= 20 ? C.high : C.sub, fontFamily: C.mono }}>{r.deviceScore}</span> },
+          { label: 'Input Method', w: '90px', render: r => <Chip color={r.mobileSignals?.inputMethod === 'AUTOMATED' ? C.critical : C.ok}>{r.mobileSignals?.inputMethod || '—'}</Chip> },
+          { label: 'Device Risk', w: '80px', render: r => <Chip color={r.deviceFingerprint?.riskLevel === 'HIGH' ? C.critical : r.deviceFingerprint?.riskLevel === 'MEDIUM' ? C.med : C.ok}>{r.deviceFingerprint?.riskLevel || '—'}</Chip> },
+          { label: 'RC', w: '40px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.gold }}>{r.reasonCodes?.length || 0}</span> },
+          { label: 'Amount', w: '95px', mono: true, render: r => <span style={{ fontWeight: 600, color: C.ink }}>€{r.amount.toLocaleString('en', { minimumFractionDigits: 0 })}</span> },
+        ]}
+        rows={flaggedTx}
+        onRow={r => setExpId(expId === r.id ? null : r.id)}
+        expId={expId}
+        renderExp={r => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.violet, textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>Mobile Biometrics</div>
+              <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.9 }}>
+                <div><span style={{ color: C.sub }}>Touch Pressure:</span> μ={r.mobileSignals?.touchPressure.mean} σ=<span style={{ color: r.mobileSignals?.touchPressure.std < 0.01 ? C.critical : C.ok }}>{r.mobileSignals?.touchPressure.std}</span></div>
+                <div><span style={{ color: C.sub }}>Swipe Velocity:</span> μ={r.mobileSignals?.swipeVelocity.mean}px/s σ={r.mobileSignals?.swipeVelocity.std}</div>
+                <div><span style={{ color: C.sub }}>Keystroke:</span> μ={r.mobileSignals?.keystrokeDynamics.interKeyMean}ms σ={r.mobileSignals?.keystrokeDynamics.interKeyStd}</div>
+                <div style={{ marginTop: 8 }}><span style={{ color: C.sub }}>Composite Score:</span> <span style={{ fontWeight: 700, color: r.mobileScore >= 70 ? C.critical : C.high }}>{r.mobileScore}/100</span></div>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.teal, textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>Device Fingerprint</div>
+              <div style={{ fontSize: 10, color: C.sub, fontFamily: C.mono, lineHeight: 1.9 }}>
+                <div style={{ color: C.sub, fontFamily: C.sans, fontSize: 11 }}>UA: <span style={{ color: r.deviceFingerprint?.userAgent?.includes('Headless') ? C.critical : C.sub }}>{r.deviceFingerprint?.userAgent?.slice(0, 35)}…</span></div>
+                <div>{r.deviceFingerprint?.screenRes} · {r.deviceFingerprint?.timezone}</div>
+                <div>WebGL: {r.deviceFingerprint?.webglRenderer}</div>
+                <div>Canvas: {r.deviceFingerprint?.canvasHash}</div>
+                <div style={{ marginTop: 6 }}><Chip color={r.deviceFingerprint?.riskLevel === 'HIGH' ? C.critical : C.med}>{r.deviceFingerprint?.riskLevel} ({r.deviceScore})</Chip></div>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontFamily: C.mono, color: C.gold, textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>Reason Codes · Art. 86</div>
+              {(r.reasonCodes || []).slice(0, 5).map((rc, i) => (
+                <div key={i} style={{ padding: '4px 0', borderBottom: `1px solid ${C.line}` }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 1 }}>
+                    <span style={{ fontFamily: C.mono, fontSize: 9, color: rc.source === 'ALGEBRAIC' ? C.ok : rc.source === 'MOBILE' ? C.violet : C.high, fontWeight: 700 }}>{rc.code}</span>
+                    <span style={{ fontSize: 9, color: C.sub }}>[{rc.confidence || 100}%]</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: C.sub }}>{rc.text?.slice(0, 72)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COVERAGE VIEW
+// ═══════════════════════════════════════════════════════════════
+function CoverageView() {
+  const patternRadar = [
+    { cat: 'Process Integrity', algebraic: 95, heuristic: 30 },
+    { cat: 'Identity Fraud', algebraic: 0, heuristic: 45 },
+    { cat: 'Social Engineering', algebraic: 0, heuristic: 40 },
+    { cat: 'AML/Sanctions', algebraic: 15, heuristic: 50 },
+    { cat: 'Behavioral', algebraic: 0, heuristic: 65 },
+    { cat: 'Multi-TX Correlation', algebraic: 10, heuristic: 55 },
+    { cat: 'Mobile Biometrics', algebraic: 0, heuristic: 70 },
+    { cat: 'Device Auth.', algebraic: 0, heuristic: 60 },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <Panel hover={false} style={{ borderLeft: `3px solid ${C.info}` }}>
+        <PanelBody p="20px 24px">
+          <div style={{ fontSize: 10, fontFamily: C.mono, color: C.info, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 6 }}>Coverage & Limitations Disclosure</div>
+          <div style={{ fontSize: 16, fontFamily: C.serif, fontWeight: 700, color: C.ink }}>Transparent Scope · Known Gaps · Pattern Catalog · Regulatory Tracking</div>
+          <div style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>This section provides full transparency on detection scope, limitations, and regulatory alignment for CFO, CIO and Audit review.</div>
+        </PanelBody>
+      </Panel>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <Panel accent={C.ok}>
+          <PanelBody>
+            <PanelTitle sub="0-Hecke monoid H₀(Sₙ) — Coq-verified — 0.00% FP">Algebraic Engine</PanelTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                ['Method', '0-Hecke monoid word reduction via confluence (Coq 433 lines)'],
+                ['Guarantee', 'Mathematically proven — 0.00% false positive rate'],
+                ['Patterns', `${PP.length + IP.length} proven across payments and invoice processing`],
+                ['Latency', 'Sub-10µs per transaction — no performance impact'],
+                ['ISO 20022', 'Native support: pacs.008, pacs.002, pain.001'],
+                ['Scope', 'Process-integrity violations only — not behavioral'],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                  <span style={{ color: C.sub, minWidth: 70, fontFamily: C.mono, fontSize: 9, textTransform: 'uppercase', paddingTop: 1 }}>{k}</span>
+                  <span style={{ color: C.ink }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+
+        <Panel accent={C.high}>
+          <PanelBody>
+            <PanelTitle sub="Behavioral, biometric, and geographic risk scoring">Heuristic Engine</PanelTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                ['Method', 'Multi-factor behavioral scoring — velocity, VoP, geography, biometrics'],
+                ['Confidence', 'Statistical — probabilistic. Subject to false positives above threshold'],
+                ['Threshold', 'Score ≥ 60 triggers flag. Configurable per risk appetite'],
+                ['Patterns', `${HP.length} heuristic flags including mobile biometrics (v4.2)`],
+                ['VoP', 'IPR 2024/886 Art. 5c — MATCH / CLOSE_MATCH / NO_MATCH'],
+                ['Scope', 'Behavioral anomalies, identity risk, and automation signals'],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                  <span style={{ color: C.sub, minWidth: 70, fontFamily: C.mono, fontSize: 9, textTransform: 'uppercase', paddingTop: 1 }}>{k}</span>
+                  <span style={{ color: C.ink }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* Radar chart */}
+      <Panel>
+        <PanelBody>
+          <PanelTitle sub="Algebraic (deterministic) vs heuristic (probabilistic) coverage by fraud category">Fraud Coverage Matrix</PanelTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'center' }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <RadarChart data={patternRadar}>
+                <PolarGrid stroke={C.line}/>
+                <PolarAngleAxis dataKey="cat" tick={{ fontSize: 9, fill: C.sub, fontFamily: C.mono }}/>
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 8, fill: C.sub }}/>
+                <Radar name="Algebraic" dataKey="algebraic" stroke={C.ok} fill={C.ok} fillOpacity={0.15} strokeWidth={2.5}/>
+                <Radar name="Heuristic" dataKey="heuristic" stroke={C.high} fill={C.high} fillOpacity={0.12} strokeWidth={2}/>
+              </RadarChart>
+            </ResponsiveContainer>
+            <div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ width: 16, height: 3, background: C.ok, borderRadius: 2 }}/>
+                <span style={{ fontSize: 12, color: C.ok, fontWeight: 700 }}>Algebraic</span>
+                <span style={{ fontSize: 11, color: C.sub }}>— provably complete within scope</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ width: 16, height: 3, background: C.high, borderRadius: 2 }}/>
+                <span style={{ fontSize: 12, color: C.high, fontWeight: 700 }}>Heuristic</span>
+                <span style={{ fontSize: 11, color: C.sub }}>— coverage varies by category</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.7, padding: '12px 14px', background: C.panel, borderRadius: 8, borderLeft: `2px solid ${C.line}` }}>
+                Algebraic detection delivers complete coverage for process integrity violations. Heuristic scoring extends the detection surface to behavioral and identity fraud, which fall outside algebraic scope by design. Both engines are complementary and independent.
+              </div>
+            </div>
+          </div>
+        </PanelBody>
+      </Panel>
+
+      {/* Known gaps */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <Panel>
+          <PanelBody>
+            <PanelTitle sub="Fraud categories outside detection scope — important for risk assessment">Not Detected (Algebraic Engine)</PanelTitle>
+            {['APP fraud (canonical word appears valid)', 'Account takeover (valid credential use)', 'Synthetic identity fraud', 'First-party / friendly fraud', 'Money laundering layering', 'Card-not-present fraud', 'Crypto-asset fraud'].map((g, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < 6 ? `1px solid ${C.line}` : 'none' }}>
+                <span style={{ color: C.critical, fontSize: 12 }}>✗</span>
+                <span style={{ fontSize: 11, color: C.sub }}>{g}</span>
+              </div>
+            ))}
+          </PanelBody>
+        </Panel>
+        <Panel>
+          <PanelBody>
+            <PanelTitle sub="Partially mitigated via heuristic and biometric layers">Partially Addressed (Heuristic + Biometrics)</PanelTitle>
+            {['APP fraud → behavioral scoring + touch biometrics (H1, H7)', 'ATO → session anomaly + device fingerprint (H2, H9)', 'Velocity anomaly → frequency threshold + keystroke (H3)', 'Cross-border risk → geographic scoring (H4)', 'VoP mismatch → IPR-mandated check (H5)', 'Transaction clustering → cross-session aggregation (H6)', 'Bot automation → pressure variance + timing (H7, H8)', 'Device spoofing → canvas/WebGL composite hash (H9)'].map((g, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < 7 ? `1px solid ${C.line}` : 'none' }}>
+                <span style={{ color: C.med, fontSize: 12 }}>△</span>
+                <span style={{ fontSize: 11, color: C.sub }}>{g}</span>
+              </div>
+            ))}
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* Pattern catalog */}
+      <Section badge={`${PP.length + IP.length + HP.length} patterns`}>Full Pattern Catalog</Section>
+      <DataTable
+        cols={[
+          { label: 'Code', w: '60px', mono: true, render: r => <span style={{ fontWeight: 700, color: C.ink }}>{r.code}</span> },
+          { label: 'Pattern Name', w: '1fr', render: r => <div><div style={{ fontWeight: 600, color: C.ink, fontSize: 11 }}>{r.name}</div><div style={{ fontSize: 9, color: C.sub }}>{r.cat}</div></div> },
+          { label: 'Method', w: '90px', render: r => <MethodChip m={r.method}/> },
+          { label: 'Severity', w: '80px', render: r => <SevChip s={r.sev}/> },
+          { label: 'Regulation', w: '1fr', mono: true, render: r => <span style={{ fontSize: 9, color: C.sub }}>{r.reg}</span> },
+          { label: 'DORA', w: '70px', render: r => <DoraChip d={r.dora}/> },
+        ]}
+        rows={[...PP, ...IP, ...HP]}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+const NAV = [
+  { id: 'overview', label: 'Overview', icon: '◈' },
+  { id: 'audit', label: 'Audit & Compliance', icon: '⚖' },
+  { id: 'accounting', label: 'Accounting', icon: '⊞' },
+  { id: 'biometrics', label: 'Biometrics', icon: '⬡' },
+  { id: 'coverage', label: 'Coverage', icon: '◉' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  ROOT APP
+// ═══════════════════════════════════════════════════════════════
+function App() {
+  const data = useData();
+  const [tab, setTab] = useState('overview');
+  const [ts, setTs] = useState(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+  useEffect(() => {
+    const t = setInterval(() => setTs(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.void, color: C.ink, fontFamily: C.sans }}>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+      <style>{`
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: ${C.depth}; }
+        ::-webkit-scrollbar-thumb { background: ${C.line}; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: ${C.muted}; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .live-dot { animation: pulse 2s ease-in-out infinite; }
+      `}</style>
+
+      {/* ── Top Navigation Bar ── */}
+      <header style={{
+        background: C.depth,
+        borderBottom: `1px solid ${C.line}`,
+        padding: '0 32px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        height: 58, flexWrap: 'wrap', gap: 8,
+        position: 'sticky', top: 0, zIndex: 100,
+      }}>
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Logo size={38}/>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, fontFamily: C.serif, color: C.ink, letterSpacing: '-.01em', lineHeight: 1.2 }}>Hecke Enterprise Console</div>
+            <div style={{ fontSize: 8, fontFamily: C.mono, color: C.goldDim, letterSpacing: '.18em', textTransform: 'uppercase' }}>Certainty Layer · v4.2</div>
+          </div>
+        </div>
+
+        {/* Nav items */}
+        <nav style={{ display: 'flex', gap: 2 }}>
+          {NAV.map(n => (
+            <button
+              key={n.id}
+              onClick={() => setTab(n.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 7, border: 'none',
+                background: tab === n.id ? C.goldFog : 'transparent',
+                borderBottom: tab === n.id ? `2px solid ${C.gold}` : '2px solid transparent',
+                color: tab === n.id ? C.gold : C.sub,
+                fontSize: 11, fontWeight: tab === n.id ? 700 : 500,
+                fontFamily: C.sans, cursor: 'pointer', letterSpacing: '.01em',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (tab !== n.id) { e.currentTarget.style.color = C.sub; e.currentTarget.style.background = `${C.card}`; }}}
+              onMouseLeave={e => { if (tab !== n.id) { e.currentTarget.style.color = C.muted; e.currentTarget.style.background = 'transparent'; }}}
+            >
+              <span style={{ fontSize: 10 }}>{n.icon}</span>
+              {n.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Status strip */}
+        <div style={{ display: 'flex', gap: 16, fontSize: 10, fontFamily: C.mono, color: C.sub, alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span className="live-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: C.ok, display: 'inline-block' }}/>
+            <span style={{ color: C.ok }}>LIVE</span>
+          </div>
+          <span>{ts}</span>
+          <span style={{ color: C.line }}>|</span>
+          <span>{data.all.length.toLocaleString()} TX</span>
+          <span style={{ color: C.line }}>|</span>
+          <span style={{ color: C.critical }}>{data.bl.length} BLOCKED</span>
+          <span style={{ color: C.line }}>|</span>
+          <span style={{ color: C.ok }}>FP: 0.00%</span>
+        </div>
+      </header>
+
+      {/* ── Sub-bar: regulatory indicators ── */}
+      <div style={{
+        background: C.surface,
+        borderBottom: `1px solid ${C.line}`,
+        padding: '0 32px',
+        height: 34,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {[['PSD3/PSR', C.gold], ['DORA', C.info], ['SOX 404', C.gold], ['ISAE 3402', C.gold], ['PCAOB AS 2201', C.gold], ['EU AI Act Art. 86', C.violet], ['GDPR Art. 22', C.teal], ['IPR 2024/886', C.high]].map(([label, c]) => (
+            <span key={label} style={{ fontSize: 9, fontFamily: C.mono, color: c, letterSpacing: '.06em', padding: '2px 8px', background: `${c}10`, borderRadius: 4, border: `1px solid ${c}20` }}>{label}</span>
+          ))}
+        </div>
+        <div style={{ fontSize: 9, fontFamily: C.mono, color: C.sub }}>
+          DOI: 10.5281/zenodo.18609841 · 10.5281/zenodo.18642975 · H₀(Sₙ) Algebra · Coq 433 lines
+        </div>
+      </div>
+
+      {/* ── Content ── */}
+      <main style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
+        {tab === 'overview' && <OverviewView data={data}/>}
+        {tab === 'audit' && <AuditView data={data}/>}
+        {tab === 'accounting' && <AccountingView data={data}/>}
+        {tab === 'biometrics' && <BiometricsView data={data}/>}
+        {tab === 'coverage' && <CoverageView/>}
+      </main>
+
+      {/* ── Footer ── */}
+      <footer style={{
+        borderTop: `1px solid ${C.line}`,
+        padding: '14px 32px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: C.depth,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Logo size={18}/>
+          <span style={{ fontSize: 9, fontFamily: C.mono, color: C.sub }}>© 2026 S. F. Lefort · SFL Consulting · Herstal, Belgium</span>
+        </div>
+        <div style={{ display: 'flex', gap: 16, fontSize: 9, fontFamily: C.mono, color: C.sub }}>
+          <span>HFG v3.3</span>
+          <span style={{ color: C.line }}>·</span>
+          <span>HIG v1.0</span>
+          <span style={{ color: C.line }}>·</span>
+          <span>Heuristic v1.0</span>
+          <span style={{ color: C.line }}>·</span>
+          <span>Bio v1.0</span>
+          <span style={{ color: C.line }}>·</span>
+          <span>CC BY 4.0</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+    // ── Mount ────────────────────────────────────────────────────
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+    document.getElementById('loading').style.display = 'none';
+  </script>
+</body>
+</html>
